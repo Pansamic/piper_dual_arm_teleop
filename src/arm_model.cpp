@@ -1,17 +1,16 @@
 /**
- * @file ArmControl.cpp
+ * @file arm_model.cpp
  * @author pansamic (pansamic@foxmail.com)
- * @brief AgileX Piper robotic arm control stack.
+ * @brief AgileX Piper robotic arm model, including kinematics and dynamics.
  * @version 0.1
  * @date 2025-05-05
  * 
  * @copyright Copyright (c) 2025
  * 
  */
-#include <iostream>
 #include <Eigen/Core>
 #include <Eigen/Geometry>
-#include <arm_control.h>
+#include <arm_model.h>
 
 template<typename T>
 constexpr Eigen::Matrix<T,4,4> getTransformFromRotationAndTranslation(T x, T y, T z, T roll, T pitch, T yaw)
@@ -34,7 +33,7 @@ constexpr Eigen::Matrix<T,3,3> getInertial(T ixx, T iyy, T izz, T ixy, T ixz, T 
     return (Eigen::Matrix<T,3,3>() << ixx, ixy, ixz, ixy, iyy, iyz, ixz, iyz, izz).finished();
 };
 
-const std::array<Eigen::Matrix4d,ArmControl::num_link_> ArmControl::default_transform_ =
+const std::array<Eigen::Matrix4d,ArmModel::num_link_> ArmModel::default_transform_ =
 {
     getTransformFromRotationAndTranslation<double>(0,0,0.123,0,0,0),
     getTransformFromRotationAndTranslation<double>(0,0,0,M_PI/2,-0.1359,-M_PI),
@@ -47,13 +46,13 @@ const std::array<Eigen::Matrix4d,ArmControl::num_link_> ArmControl::default_tran
     // getTransformFromRotationAndTranslation<double>(0,0,0.1358,M_PI/2,0,-M_PI),
 };
 
-const std::array<double,ArmControl::num_link_> ArmControl::mass_ =
+const std::array<double,ArmModel::num_link_> ArmModel::mass_ =
 {
     0.71, 1.17, 0.5, 0.38, 0.383, 0.007, 0.45,
     // 0.025, 0.025
 };
 
-const std::array<Eigen::Matrix3d,ArmControl::num_link_> ArmControl::inertia_ =
+const std::array<Eigen::Matrix3d,ArmModel::num_link_> ArmModel::inertia_ =
 {
     getInertial<double>(0.00048916, 0.00040472, 0.00043982, -0.00000036, -0.00000224, -0.00000242),
     getInertial<double>(0.00116918, 0.06785384, 0.06774489, -0.00180037, 0.00025146, -0.00000455),
@@ -66,7 +65,7 @@ const std::array<Eigen::Matrix3d,ArmControl::num_link_> ArmControl::inertia_ =
     // getInertial<double>(0.00007371, 0.00000781, 0.0000747, -0.00000113, 0.00000021, -0.00001372),
 };
 
-const std::array<Eigen::Vector3d,ArmControl::num_link_> ArmControl::center_of_mass_ =
+const std::array<Eigen::Vector3d,ArmModel::num_link_> ArmModel::center_of_mass_ =
 {
     (Eigen::Vector3d() << 0.000121504734057468, 0.000104632162460536, -0.00438597309559853).finished(),
     (Eigen::Vector3d() << 0.198666145229743, -0.010926924140076, 0.00142121714502687).finished(),
@@ -79,7 +78,7 @@ const std::array<Eigen::Vector3d,ArmControl::num_link_> ArmControl::center_of_ma
     // (Eigen::Vector3d() << 0.000651231850419722, -0.0491929869131991, 0.00972258769184024).finished(),
 };
 
-const std::array<Eigen::Vector3d,ArmControl::num_link_> ArmControl::joint_axis_ =
+const std::array<Eigen::Vector3d,ArmModel::num_link_> ArmModel::joint_axis_ =
 {
     (Eigen::Vector3d() << 0, 0, 1).finished(),
     (Eigen::Vector3d() << 0, 0, 1).finished(),
@@ -92,7 +91,7 @@ const std::array<Eigen::Vector3d,ArmControl::num_link_> ArmControl::joint_axis_ 
     // (Eigen::Vector3d() << 0, 0, -1).finished(),
 };
 
-const std::array<JointType,ArmControl::num_link_> ArmControl::joint_type_ =
+const std::array<JointType,ArmModel::num_link_> ArmModel::joint_type_ =
 {
     JOINT_REVOLUTE,
     JOINT_REVOLUTE,
@@ -105,61 +104,61 @@ const std::array<JointType,ArmControl::num_link_> ArmControl::joint_type_ =
     // JOINT_PRISMATIC
 };
 
-const std::array<double,ArmControl::num_dof_> ArmControl::joint_pos_limit_low_ =
+const std::array<double,ArmModel::num_dof_> ArmModel::joint_pos_limit_low_ =
 {
     -2.618, 0, -2.967, -1.745, -1.22, -2.0944
 };
 
-const std::array<double,ArmControl::num_dof_> ArmControl::joint_pos_limit_high_ =
+const std::array<double,ArmModel::num_dof_> ArmModel::joint_pos_limit_high_ =
 {
     2.618, M_PI, 0, 1.745, 1.22, 2.0944
 };
 
-const std::array<double,ArmControl::num_dof_> ArmControl::joint_vel_limit_low_ =
+const std::array<double,ArmModel::num_dof_> ArmModel::joint_vel_limit_low_ =
 {
     -4*M_PI, -4*M_PI, -4*M_PI, -4*M_PI, -4*M_PI, -4*M_PI
 };
 
-const std::array<double,ArmControl::num_dof_> ArmControl::joint_vel_limit_high_ =
+const std::array<double,ArmModel::num_dof_> ArmModel::joint_vel_limit_high_ =
 {
     4*M_PI, 4*M_PI, 4*M_PI, 4*M_PI, 4*M_PI, 4*M_PI
 };
 
-const std::array<double,ArmControl::num_dof_> ArmControl::joint_acc_limit_low_ =
+const std::array<double,ArmModel::num_dof_> ArmModel::joint_acc_limit_low_ =
 {
     -2*M_PI, -2*M_PI, -2*M_PI, -2*M_PI, -2*M_PI, -2*M_PI
 };
 
-const std::array<double,ArmControl::num_dof_> ArmControl::joint_acc_limit_high_ =
+const std::array<double,ArmModel::num_dof_> ArmModel::joint_acc_limit_high_ =
 {
     2*M_PI, 2*M_PI, 2*M_PI, 2*M_PI, 2*M_PI, 2*M_PI
 };
 
-const std::array<double,ArmControl::num_dof_> ArmControl::joint_torque_limit_low_ =
+const std::array<double,ArmModel::num_dof_> ArmModel::joint_torque_limit_low_ =
 {
     -45, -45, -45, -30, -30, -20
 };
 
-const std::array<double,ArmControl::num_dof_> ArmControl::joint_torque_limit_high_ =
+const std::array<double,ArmModel::num_dof_> ArmModel::joint_torque_limit_high_ =
 {
     45, 45, 45, 30, 30, 20
 };
 
-void ArmControl::limitJointPosition(Eigen::Vector<double,num_dof_>& joint_pos) const
+void ArmModel::limitJointPosition(Eigen::Vector<double,num_dof_>& joint_pos) const
 {
     for ( int i=0 ; i<num_dof_ ; i++ )
     {
         joint_pos(i) = std::clamp(joint_pos(i), joint_pos_limit_low_[i], joint_pos_limit_high_[i]);
     }
 }
-void ArmControl::limitJointVelocity(Eigen::Vector<double,num_dof_>& joint_vel) const
+void ArmModel::limitJointVelocity(Eigen::Vector<double,num_dof_>& joint_vel) const
 {
     for ( int i=0 ; i<num_dof_ ; i++ )
     {
         joint_vel(i) = std::clamp(joint_vel(i), joint_vel_limit_low_[i], joint_vel_limit_high_[i]);
     }
 }
-void ArmControl::limitJointTorque(Eigen::Vector<double,num_dof_>& joint_torque) const
+void ArmModel::limitJointTorque(Eigen::Vector<double,num_dof_>& joint_torque) const
 {
     for ( int i=0 ; i<num_dof_ ; i++ )
     {
@@ -167,7 +166,7 @@ void ArmControl::limitJointTorque(Eigen::Vector<double,num_dof_>& joint_torque) 
     }
 }
 
-void ArmControl::getTransform(
+void ArmModel::getTransform(
     std::array<Eigen::Matrix4d,num_link_>& link_transform,
     std::array<Eigen::Matrix4d,num_link_>& com_transform,
     const Eigen::Vector<double,num_dof_>& joint_pos) const
@@ -209,7 +208,7 @@ void ArmControl::getTransform(
 }
 
 
-void ArmControl::getLinkVelocity(
+void ArmModel::getLinkVelocity(
     std::array<Eigen::Vector3d,num_link_>& link_lin_vel,
     std::array<Eigen::Vector3d,num_link_>& link_ang_vel,
     std::array<Eigen::Vector3d,num_link_>& link_com_lin_vel,
@@ -282,7 +281,7 @@ void ArmControl::getLinkVelocity(
     }
 }
 
-void ArmControl::getLinkSpaceJacobian(
+void ArmModel::getLinkSpaceJacobian(
     std::array<Eigen::Matrix<double,6,num_dof_>,num_link_>& link_com_jacobian,
     const std::array<Eigen::Matrix4d,num_link_>& link_transform) const
 {
@@ -314,7 +313,7 @@ void ArmControl::getLinkSpaceJacobian(
     }
 }
 
-void ArmControl::getLinkComSpaceJacobian(
+void ArmModel::getLinkComSpaceJacobian(
     std::array<Eigen::Matrix<double,6,num_dof_>,num_link_>& link_com_jacobian,
     const std::array<Eigen::Matrix4d,num_link_>& link_transform,
     const std::array<Eigen::Matrix4d,num_link_>& link_com_transform) const
@@ -347,7 +346,7 @@ void ArmControl::getLinkComSpaceJacobian(
     }
 }
 
-void ArmControl::getLinkComSpaceJacobianDot(
+void ArmModel::getLinkComSpaceJacobianDot(
     std::array<Eigen::Matrix<double,6,num_dof_>,num_link_>& link_com_jacobian_dot,
     const std::array<Eigen::Matrix4d,num_link_>& link_transform,
     const std::array<Eigen::Matrix4d,num_link_>& link_com_transform,
@@ -385,7 +384,7 @@ void ArmControl::getLinkComSpaceJacobianDot(
     }
 }
 
-Eigen::Matrix<double,ArmControl::num_dof_,ArmControl::num_dof_> ArmControl::getJointSpaceMassMatrix(
+Eigen::Matrix<double,ArmModel::num_dof_,ArmModel::num_dof_> ArmModel::getJointSpaceMassMatrix(
     const std::array<Eigen::Matrix4d,num_link_>& link_com_transform,
     const std::array<Eigen::Matrix<double,6,num_dof_>,num_link_>& link_com_jacobian) const
 {
@@ -414,7 +413,7 @@ Eigen::Matrix<double,ArmControl::num_dof_,ArmControl::num_dof_> ArmControl::getJ
     return generalized_mass_matrix;
 }
 
-Eigen::Matrix<double,ArmControl::num_dof_,ArmControl::num_dof_> ArmControl::getJointSpaceCoriolisMatrix(
+Eigen::Matrix<double,ArmModel::num_dof_,ArmModel::num_dof_> ArmModel::getJointSpaceCoriolisMatrix(
     const std::array<Eigen::Matrix4d,num_link_>& link_com_transform,
     const std::array<Eigen::Matrix<double,6,num_dof_>,num_link_>& link_com_jacobian,
     const std::array<Eigen::Matrix<double,6,num_dof_>,num_link_>& link_com_jacobian_dot,
@@ -458,10 +457,10 @@ Eigen::Matrix<double,ArmControl::num_dof_,ArmControl::num_dof_> ArmControl::getJ
 
     return centrifugal_coriolis_matrix;
 }
-Eigen::Vector<double,ArmControl::num_dof_> ArmControl::getJointSpaceGravityCompensate(
+Eigen::Vector<double,ArmModel::num_dof_> ArmModel::getJointSpaceGravityCompensate(
     const std::array<Eigen::Matrix<double,6,num_dof_>,num_link_>& link_com_jacobian) const
 {
-    Eigen::Vector<double,ArmControl::num_dof_> gravity_compensate;
+    Eigen::Vector<double,ArmModel::num_dof_> gravity_compensate;
 
     gravity_compensate.setZero();
 
@@ -485,7 +484,7 @@ Eigen::Vector<double,ArmControl::num_dof_> ArmControl::getJointSpaceGravityCompe
     return gravity_compensate;
 }
 
-void ArmControl::getTaskSpaceInverseDynamics(
+void ArmModel::getTaskSpaceInverseDynamics(
     Eigen::Matrix<double,6,6>& task_space_mass_matrix,
     Eigen::Vector<double,6>& task_space_bias_force,
     const Eigen::Vector<double,num_dof_>& joint_pos,
@@ -533,7 +532,7 @@ void ArmControl::getTaskSpaceInverseDynamics(
     task_space_bias_force = (jacobian_inv_T * centrifugal_coriolis_matrix * jacobian_inv - task_space_mass_matrix * link_com_jacobian_dot[num_link_-1] * jacobian_inv) * twist + jacobian_inv_T * gravity_compensate;
 }
 
-Eigen::Vector<double,ArmControl::num_dof_> ArmControl::getImpedanceControl(
+Eigen::Vector<double,ArmModel::num_dof_> ArmModel::getImpedanceControl(
     const Eigen::Vector<double,num_dof_>& actual_joint_pos,
     const Eigen::Vector<double,num_dof_>& actual_joint_vel,
     const Eigen::Vector3d& target_pos,
@@ -644,7 +643,7 @@ Eigen::Vector<double,ArmControl::num_dof_> ArmControl::getImpedanceControl(
     return torque;
 }
 
-Eigen::Vector<double,ArmControl::num_dof_> ArmControl::getDiffIKControl(
+Eigen::Vector<double,ArmModel::num_dof_> ArmModel::getDiffIKControl(
     const Eigen::Vector<double,num_dof_>& actual_joint_pos,
     const Eigen::Vector<double,num_dof_>& actual_joint_vel,
     const Eigen::Vector3d& target_pos,
@@ -679,7 +678,7 @@ Eigen::Vector<double,ArmControl::num_dof_> ArmControl::getDiffIKControl(
     return target_joint_pos;
 }
 
-Eigen::Vector3d ArmControl::getShoulderJointPos(const Eigen::Matrix4d &pose, const Eigen::Vector3d& ref_conf) const
+Eigen::Vector3d ArmModel::getShoulderJointPos(const Eigen::Matrix4d &pose, const Eigen::Vector3d& ref_conf) const
 {
     /* return value */
     Eigen::Vector3d best_shoulder_joint_pos = Eigen::Vector3d(0.0, 0.0, 0.0);
@@ -846,7 +845,7 @@ Eigen::Vector3d ArmControl::getShoulderJointPos(const Eigen::Matrix4d &pose, con
     return best_shoulder_joint_pos;
 }
 
-Eigen::Vector<double,6> ArmControl::getInverseKinematics(
+Eigen::Vector<double,6> ArmModel::getInverseKinematics(
     const Eigen::Matrix4d& pose,
     const Eigen::Vector<double,6>& ref_conf) const
 {
@@ -1061,7 +1060,7 @@ Eigen::Vector<double,6> ArmControl::getInverseKinematics(
     return best_joint_pos;
 }
 
-Eigen::Vector<double,ArmControl::num_dof_> ArmControl::getDampedLeastSquareInverseKinematics(
+Eigen::Vector<double,ArmModel::num_dof_> ArmModel::getDampedLeastSquareInverseKinematics(
     const double lambda,
     const Eigen::Vector<double,6> tolerance,
     const size_t max_iteration,
@@ -1099,9 +1098,9 @@ Eigen::Vector<double,ArmControl::num_dof_> ArmControl::getDampedLeastSquareInver
     }
     for ( size_t i=0 ; i<max_iteration ; i++ )
     {
-        std::array<Eigen::Matrix4d,ArmControl::num_link_> link_transform;
-        std::array<Eigen::Matrix4d,ArmControl::num_link_> link_com_transform;
-        std::array<Eigen::Matrix<double,6,ArmControl::num_dof_>,ArmControl::num_link_> link_jacobian;
+        std::array<Eigen::Matrix4d,ArmModel::num_link_> link_transform;
+        std::array<Eigen::Matrix4d,ArmModel::num_link_> link_com_transform;
+        std::array<Eigen::Matrix<double,6,ArmModel::num_dof_>,ArmModel::num_link_> link_jacobian;
         this->getTransform(link_transform, link_com_transform, best_joint_pos);
         this->getLinkSpaceJacobian(link_jacobian, link_transform);
         Eigen::Vector<double,6> pose_diff = getPoseDiff(pose, link_transform[5]);

@@ -1,15 +1,15 @@
 /**
- * @file arm_control.h
+ * @file arm_model.h
  * @author pansamic (pansamic@foxmail.com)
- * @brief AgileX Piper robotic arm control stack.
+ * @brief AgileX Piper robotic arm model, including kinematics and dynamics.
  * @version 0.1
  * @date 2025-05-05
  * 
  * @copyright Copyright (c) 2025
  * 
  */
-#ifndef __ARM_CONTROL_H__
-#define __ARM_CONTROL_H__
+#ifndef __ARM_MODEL_H__
+#define __ARM_MODEL_H__
 
 #include <array>
 #include <memory>
@@ -27,7 +27,7 @@ typedef enum JointType
  * @brief AgileX Piper robotics arm kinematics and dynamics
  * 
  */
-class ArmControl
+class ArmModel
 {
 public:
     static constexpr int num_dof_ = 6;
@@ -37,8 +37,8 @@ public:
      * @brief Construct a new Arm Control object.
      * 
      */
-    ArmControl(const Eigen::Matrix4d& base_transform):base_transform_(base_transform){};
-    ~ArmControl(){};
+    ArmModel(const Eigen::Matrix4d& base_transform):base_transform_(base_transform){};
+    ~ArmModel(){};
 
     void limitJointPosition(Eigen::Vector<double,num_dof_>& joint_pos) const;
     void limitJointVelocity(Eigen::Vector<double,num_dof_>& joint_vel) const;
@@ -146,7 +146,7 @@ public:
      * @param actual_orientation actual end effector orientation (expressed in quaternion) in base frame.
      * @param target_twist desired end effector twist (3-axis linear velocity and 3-axis angular velocity) in base frame.
      * 
-     * @return Eigen::Vector<double,ArmControl::num_dof_> joint torque for control.
+     * @return Eigen::Vector<double,ArmModel::num_dof_> joint torque for control.
      */
     Eigen::Vector<double,num_dof_> getImpedanceControl(
         const Eigen::Vector<double,num_dof_>& actual_joint_pos,
@@ -193,4 +193,4 @@ private:
     static const std::array<double,num_dof_> joint_torque_limit_high_;
 };
 
-#endif //__ARM_CONTROL_H__
+#endif //__ARM_MODEL_H__

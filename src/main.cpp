@@ -60,12 +60,12 @@ int main(int argv, char** argc)
     Eigen::Quaterniond left_hand_target_orientation(0.000044497177102,0.382683431921232,-0.923879531439719,0.000018431334243);
     Eigen::Matrix4d left_hand_target_pose = Eigen::Matrix4d::Identity();
     Eigen::Quaterniond left_hand_actual_orientation = Eigen::Quaterniond::Identity();
-    Eigen::Vector<double,ArmControl::num_dof_> left_arm_target_joint_pos = Eigen::Vector<double,ArmControl::num_dof_>::Zero();
-    Eigen::Vector<double,ArmControl::num_dof_> left_arm_target_joint_vel = Eigen::Vector<double,ArmControl::num_dof_>::Zero();
-    Eigen::Vector<double,ArmControl::num_dof_> left_arm_target_joint_torque = Eigen::Vector<double,ArmControl::num_dof_>::Zero();
-    Eigen::Vector<double,ArmControl::num_dof_> left_arm_actual_joint_pos = Eigen::Vector<double,ArmControl::num_dof_>::Zero();
-    Eigen::Vector<double,ArmControl::num_dof_> left_arm_actual_joint_vel = Eigen::Vector<double,ArmControl::num_dof_>::Zero();
-    Eigen::Vector<double,ArmControl::num_dof_> left_arm_actual_joint_torque = Eigen::Vector<double,ArmControl::num_dof_>::Zero();
+    Eigen::Vector<double,ArmModel::num_dof_> left_arm_target_joint_pos = Eigen::Vector<double,ArmModel::num_dof_>::Zero();
+    Eigen::Vector<double,ArmModel::num_dof_> left_arm_target_joint_vel = Eigen::Vector<double,ArmModel::num_dof_>::Zero();
+    Eigen::Vector<double,ArmModel::num_dof_> left_arm_target_joint_torque = Eigen::Vector<double,ArmModel::num_dof_>::Zero();
+    Eigen::Vector<double,ArmModel::num_dof_> left_arm_actual_joint_pos = Eigen::Vector<double,ArmModel::num_dof_>::Zero();
+    Eigen::Vector<double,ArmModel::num_dof_> left_arm_actual_joint_vel = Eigen::Vector<double,ArmModel::num_dof_>::Zero();
+    Eigen::Vector<double,ArmModel::num_dof_> left_arm_actual_joint_torque = Eigen::Vector<double,ArmModel::num_dof_>::Zero();
     double left_gripper_control = 0;
 
     static const Eigen::Matrix4d right_arm_base_transform = (Eigen::Matrix4d() <<
@@ -77,25 +77,25 @@ int main(int argv, char** argc)
     Eigen::Quaterniond right_hand_target_orientation(0.000044497177102,-0.382683431921232,-0.923879531439719,-0.000018431334243);
     Eigen::Matrix4d right_hand_target_pose = Eigen::Matrix4d::Identity();
     Eigen::Quaterniond right_hand_actual_orientation = Eigen::Quaterniond::Identity();
-    Eigen::Vector<double,ArmControl::num_dof_> right_arm_target_joint_pos = Eigen::Vector<double,ArmControl::num_dof_>::Zero();
-    Eigen::Vector<double,ArmControl::num_dof_> right_arm_target_joint_vel = Eigen::Vector<double,ArmControl::num_dof_>::Zero();
-    Eigen::Vector<double,ArmControl::num_dof_> right_arm_target_joint_torque = Eigen::Vector<double,ArmControl::num_dof_>::Zero();
-    Eigen::Vector<double,ArmControl::num_dof_> right_arm_actual_joint_pos = Eigen::Vector<double,ArmControl::num_dof_>::Zero();
-    Eigen::Vector<double,ArmControl::num_dof_> right_arm_actual_joint_vel = Eigen::Vector<double,ArmControl::num_dof_>::Zero();
-    Eigen::Vector<double,ArmControl::num_dof_> right_arm_actual_joint_torque = Eigen::Vector<double,ArmControl::num_dof_>::Zero();
+    Eigen::Vector<double,ArmModel::num_dof_> right_arm_target_joint_pos = Eigen::Vector<double,ArmModel::num_dof_>::Zero();
+    Eigen::Vector<double,ArmModel::num_dof_> right_arm_target_joint_vel = Eigen::Vector<double,ArmModel::num_dof_>::Zero();
+    Eigen::Vector<double,ArmModel::num_dof_> right_arm_target_joint_torque = Eigen::Vector<double,ArmModel::num_dof_>::Zero();
+    Eigen::Vector<double,ArmModel::num_dof_> right_arm_actual_joint_pos = Eigen::Vector<double,ArmModel::num_dof_>::Zero();
+    Eigen::Vector<double,ArmModel::num_dof_> right_arm_actual_joint_vel = Eigen::Vector<double,ArmModel::num_dof_>::Zero();
+    Eigen::Vector<double,ArmModel::num_dof_> right_arm_actual_joint_torque = Eigen::Vector<double,ArmModel::num_dof_>::Zero();
     double right_gripper_control = 0;
 
-    std::array<Eigen::Matrix4d,ArmControl::num_link_> link_transform;
-    std::array<Eigen::Matrix4d,ArmControl::num_link_> link_com_transform;
-    std::array<Eigen::Matrix<double,6,ArmControl::num_dof_>,ArmControl::num_link_> link_com_jacobian;
-    std::array<Eigen::Matrix<double,6,ArmControl::num_dof_>,ArmControl::num_link_> link_com_jacobian_dot;
-    std::array<Eigen::Vector3d,ArmControl::num_link_> link_lin_vel;
-    std::array<Eigen::Vector3d,ArmControl::num_link_> link_ang_vel;
-    std::array<Eigen::Vector3d,ArmControl::num_link_> link_com_lin_vel;
-    std::array<Eigen::Vector3d,ArmControl::num_link_> link_com_ang_vel;
-    Eigen::Matrix<double,ArmControl::num_dof_,ArmControl::num_dof_> generalized_mass_matrix;
-    Eigen::Matrix<double,ArmControl::num_dof_,ArmControl::num_dof_> centrifugal_coriolis_matrix;
-    Eigen::Vector<double,ArmControl::num_dof_> gravity_compensate;
+    std::array<Eigen::Matrix4d,ArmModel::num_link_> link_transform;
+    std::array<Eigen::Matrix4d,ArmModel::num_link_> link_com_transform;
+    std::array<Eigen::Matrix<double,6,ArmModel::num_dof_>,ArmModel::num_link_> link_com_jacobian;
+    std::array<Eigen::Matrix<double,6,ArmModel::num_dof_>,ArmModel::num_link_> link_com_jacobian_dot;
+    std::array<Eigen::Vector3d,ArmModel::num_link_> link_lin_vel;
+    std::array<Eigen::Vector3d,ArmModel::num_link_> link_ang_vel;
+    std::array<Eigen::Vector3d,ArmModel::num_link_> link_com_lin_vel;
+    std::array<Eigen::Vector3d,ArmModel::num_link_> link_com_ang_vel;
+    Eigen::Matrix<double,ArmModel::num_dof_,ArmModel::num_dof_> generalized_mass_matrix;
+    Eigen::Matrix<double,ArmModel::num_dof_,ArmModel::num_dof_> centrifugal_coriolis_matrix;
+    Eigen::Vector<double,ArmModel::num_dof_> gravity_compensate;
     
     /* Initialize logger */
     std::filesystem::path logpath(PROJECT_PATH"/logs");
@@ -103,8 +103,8 @@ int main(int argv, char** argc)
 
     std::unique_ptr<ArmInterface> left_arm_interface = std::make_unique<ArmInterface>("can0");
     std::unique_ptr<ArmInterface> right_arm_interface = std::make_unique<ArmInterface>("can1");
-    std::unique_ptr<ArmControl> left_arm = std::make_unique<ArmControl>(left_arm_base_transform);
-    std::unique_ptr<ArmControl> right_arm = std::make_unique<ArmControl>(right_arm_base_transform);
+    std::unique_ptr<ArmModel> left_arm = std::make_unique<ArmModel>(left_arm_base_transform);
+    std::unique_ptr<ArmModel> right_arm = std::make_unique<ArmModel>(right_arm_base_transform);
 
     asio::io_context whole_body_state_io_context;
     UdpChannelReceiver<WholeBodyStateMsg> whole_body_state_channel(whole_body_state_io_context, "192.168.31.16", 12345, "192.168.31.202", 54321);
@@ -214,7 +214,7 @@ int main(int argv, char** argc)
 
         try
         {
-            Eigen::Vector<double,ArmControl::num_dof_> temp_joint_pos = Eigen::Vector<double,ArmControl::num_dof_>::Zero();
+            Eigen::Vector<double,ArmModel::num_dof_> temp_joint_pos = Eigen::Vector<double,ArmModel::num_dof_>::Zero();
             // temp_joint_pos.block<3,1>(0,0) = left_arm->getShoulderJointPos(left_hand_target_pose, left_arm_actual_joint_pos.block<3,1>(0,0));
             // temp_joint_pos = left_arm->getInverseKinematics(left_hand_target_pose,left_arm_actual_joint_pos);
             temp_joint_pos = left_arm->getDampedLeastSquareInverseKinematics(
@@ -251,7 +251,7 @@ int main(int argv, char** argc)
 
         try
         {
-            Eigen::Vector<double,ArmControl::num_dof_> temp_joint_pos = Eigen::Vector<double,ArmControl::num_dof_>::Zero();
+            Eigen::Vector<double,ArmModel::num_dof_> temp_joint_pos = Eigen::Vector<double,ArmModel::num_dof_>::Zero();
             // temp_joint_pos.block<3,1>(0,0) = right_arm->getShoulderJointPos(right_hand_target_pose, right_arm_actual_joint_pos.block<3,1>(0,0));
             // temp_joint_pos = right_arm->getInverseKinematics(right_hand_target_pose,right_arm_actual_joint_pos);
             temp_joint_pos = right_arm->getDampedLeastSquareInverseKinematics(
