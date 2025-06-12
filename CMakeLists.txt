@@ -24,6 +24,8 @@ target_include_directories(control PRIVATE
     third_party/asio-1.34.2/include
     third_party/eigen-3.4.0
     third_party/spdlog-1.15.3/include
+    third_party/inter-process-comm/itc
+    third_party/inter-process-comm
 )
 target_link_libraries(control
     pthread
@@ -53,6 +55,8 @@ if(BUILD_TESTING)
         third_party/mujoco-3.3.2-linux-x86_64/simulate
         third_party/mujoco-3.3.2-linux-x86_64/include
         third_party/lodepng
+        third_party/inter-process-comm/itc
+        third_party/inter-process-comm
     )
     target_link_directories(sim PRIVATE
         third_party/mujoco-3.3.2-linux-x86_64/lib
