@@ -9,3 +9,24 @@
  * 
  */
 #include <arm_planner.h>
+
+ArmPlanner::ArmPlanner():
+    active_trajectory_id_(0)
+{
+
+}
+
+ArmPlanner::~ArmPlanner()
+{
+
+}
+
+void ArmPlanner::plan()
+{
+    
+}
+
+const ArmPlanner::WayPoint& ArmPlanner::getWayPoint(unsigned int id) const
+{
+    return trajectory_buffer_[active_trajectory_id_][id];
+}

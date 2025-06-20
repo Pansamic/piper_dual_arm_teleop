@@ -9,6 +9,20 @@
  * 
  */
 #include <Eigen/Core>
-#include <arm_dynamics.h>
+#include <arm_model.h>
 #include <arm_controller.h>
+
+const Eigen::Vector<double,ArmModel::num_dof_> ArmController::joint_kp_ = Eigen::Vector<double,ArmModel::num_dof_>(100,100,100,100,100,100);
+
+const Eigen::Vector<double,ArmModel::num_dof_> ArmController::joint_kd_ = Eigen::Vector<double,ArmModel::num_dof_>(20,20,20,20,20,20);
+
+ArmController::ArmController()
+{
+
+}
+
+ArmController::~ArmController()
+{
+
+}
 
