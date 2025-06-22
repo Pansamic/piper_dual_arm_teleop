@@ -22,18 +22,7 @@
 #include <log.h>
 #include <arm_interface.h>
 
-ArmSimulationInterface::ArmSimulationInterface()
-{
-
-}
-
-ArmSimulationInterface::~ArmSimulationInterface()
-{
-    this->render_thread_.join();
-    this->physics_thread_.join();
-}
-
-void ArmSimulationInterface::initializeImpl()
+ArmSimulationInterface::ArmSimulationInterface(const char* mujoco_file_path)
 {
     mjvCamera cam;
     mjv_defaultCamera(&cam);
@@ -51,16 +40,16 @@ void ArmSimulationInterface::initializeImpl()
     );
 
     // start physics thread
-    std::thread physicsthreadhandle([this](){this->physicsLoop();});
+    std::thread physicsthreadhandle(&ArmSimulationInterface::threadPhysics, this, mujoco_file_path);
 
     // start simulation UI loop (blocking call)
     std::thread([this](){this->sim_->RenderLoop();});
 }
 
-bool ArmSimulationInterface::isReadyImpl()
+ArmSimulationInterface::~ArmSimulationInterface()
 {
-    /* todo: Add check ready logic */
-    return true;
+    this->render_thread_.join();
+    this->physics_thread_.join();
 }
 
 void ArmSimulationInterface::setLeftJointControl(
@@ -83,49 +72,49 @@ void ArmSimulationInterface::setRightJointControl(
     this->right_target_joint_fd_torq_ = joint_feedforward_torque;
 }
 
-void ArmSimulationInterface::setLeftGripperControlImpl(const double& position, const double& torque)
+void ArmSimulationInterface::setLeftGripperControl(const double& position, const double& torque)
 {
     /* @todo Add position/torque control logic */
     this->d->ctrl[6] = position;
 }
 
-void ArmSimulationInterface::setRightGripperControlImpl(const double& position, const double& torque)
+void ArmSimulationInterface::setRightGripperControl(const double& position, const double& torque)
 {
     /* @todo Add position/torque control logic */
     this->d->ctrl[11] = position;
 }
 
-const Eigen::Vector<double,ArmModel::num_dof_>& ArmSimulationInterface::getLeftJointPositionImpl() const
+const Eigen::Vector<double,ArmModel::num_dof_>& ArmSimulationInterface::getLeftJointPosition() const
 {
     std::lock_guard(this->left_joints_mutex_);
     return this->left_actual_joint_pos_;
 }
 
-const Eigen::Vector<double,ArmModel::num_dof_>& ArmSimulationInterface::getLeftJointVelocityImpl() const
+const Eigen::Vector<double,ArmModel::num_dof_>& ArmSimulationInterface::getLeftJointVelocity() const
 {
     std::lock_guard(this->left_joints_mutex_);
     return this->left_actual_joint_vel_;
 }
 
-const Eigen::Vector<double,ArmModel::num_dof_>& ArmSimulationInterface::getLeftJointTorqueImpl() const
+const Eigen::Vector<double,ArmModel::num_dof_>& ArmSimulationInterface::getLeftJointTorque() const
 {
     std::lock_guard(this->left_joints_mutex_);
     return this->left_actual_joint_torq_;
 }
 
-const Eigen::Vector<double,ArmModel::num_dof_>& ArmSimulationInterface::getRightJointPositionImpl() const
+const Eigen::Vector<double,ArmModel::num_dof_>& ArmSimulationInterface::getRightJointPosition() const
 {
     std::lock_guard(this->right_joints_mutex_);
     return this->right_actual_joint_pos_;
 }
 
-const Eigen::Vector<double,ArmModel::num_dof_>& ArmSimulationInterface::getRightJointVelocityImpl() const
+const Eigen::Vector<double,ArmModel::num_dof_>& ArmSimulationInterface::getRightJointVelocity() const
 {
     std::lock_guard(this->right_joints_mutex_);
     return this->right_actual_joint_vel_;
 }
 
-const Eigen::Vector<double,ArmModel::num_dof_>& ArmSimulationInterface::getRightJointTorqueImpl() const
+const Eigen::Vector<double,ArmModel::num_dof_>& ArmSimulationInterface::getRightJointTorque() const
 {
     std::lock_guard(this->right_joints_mutex_);
     return this->right_actual_joint_torq_;
@@ -399,9 +388,10 @@ void ArmSimulationInterface::physicsLoop()
     }
 }
 
-void ArmSimulationInterface::threadPhysics() {
-    this->sim_->LoadMessage(this->mujoco_file_);
-    m = this->loadModel(this->mujoco_file_);
+void ArmSimulationInterface::threadPhysics(const char* mujoco_file_path)
+{
+    this->sim_->LoadMessage(mujoco_file_path);
+    m = this->loadModel(mujoco_file_path);
     if (m) {
       // lock the sim mutex
       const std::unique_lock<std::recursive_mutex> lock(this->sim_->mtx);
@@ -409,7 +399,7 @@ void ArmSimulationInterface::threadPhysics() {
       d = mj_makeData(m);
     }
     if (d) {
-      this->sim_->Load(m, d, this->mujoco_file_);
+      this->sim_->Load(m, d, mujoco_file_path);
 
       // lock the this->sim_ mutex
       const std::unique_lock<std::recursive_mutex> lock(this->sim_->mtx);
@@ -556,47 +546,47 @@ void ArmHardwareInterface::setRightJointControl(
     setActuatorControl(this->right_can_socket_, joint_pos, joint_vel, joint_feedforward_torque);
 }
 
-void ArmHardwareInterface::setLeftGripperControlImpl(const double& position, const double& torque)
+void ArmHardwareInterface::setLeftGripperControl(const double& position, const double& torque)
 {
     setGripperControl(this->left_can_socket_, position, torque);
 }
 
-void ArmHardwareInterface::setRightGripperControlImpl(const double& position, const double& torque)
+void ArmHardwareInterface::setRightGripperControl(const double& position, const double& torque)
 {
     setGripperControl(this->right_can_socket_, position, torque);
 }
 
-const Eigen::Vector<double,ArmModel::num_dof_>& ArmHardwareInterface::getLeftJointPositionImpl() const
+const Eigen::Vector<double,ArmModel::num_dof_>& ArmHardwareInterface::getLeftJointPosition() const
 {
     std::lock_guard(this->left_joints_mutex_);
     return this->left_actual_joint_pos_;
 }
 
-const Eigen::Vector<double,ArmModel::num_dof_>& ArmHardwareInterface::getLeftJointVelocityImpl() const
+const Eigen::Vector<double,ArmModel::num_dof_>& ArmHardwareInterface::getLeftJointVelocity() const
 {
     std::lock_guard(this->left_joints_mutex_);
     return this->left_actual_joint_vel_;
 }
 
-const Eigen::Vector<double,ArmModel::num_dof_>& ArmHardwareInterface::getLeftJointTorqueImpl() const
+const Eigen::Vector<double,ArmModel::num_dof_>& ArmHardwareInterface::getLeftJointTorque() const
 {
     std::lock_guard(this->left_joints_mutex_);
     return this->left_actual_joint_torq_;
 }
 
-const Eigen::Vector<double,ArmModel::num_dof_>& ArmHardwareInterface::getRightJointPositionImpl() const
+const Eigen::Vector<double,ArmModel::num_dof_>& ArmHardwareInterface::getRightJointPosition() const
 {
     std::lock_guard(this->right_joints_mutex_);
     return this->right_actual_joint_pos_;
 }
 
-const Eigen::Vector<double,ArmModel::num_dof_>& ArmHardwareInterface::getRightJointVelocityImpl() const
+const Eigen::Vector<double,ArmModel::num_dof_>& ArmHardwareInterface::getRightJointVelocity() const
 {
     std::lock_guard(this->right_joints_mutex_);
     return this->right_actual_joint_vel_;
 }
 
-const Eigen::Vector<double,ArmModel::num_dof_>& ArmHardwareInterface::getRightJointTorqueImpl() const
+const Eigen::Vector<double,ArmModel::num_dof_>& ArmHardwareInterface::getRightJointTorque() const
 {
     std::lock_guard(this->right_joints_mutex_);
     return this->right_actual_joint_torq_;

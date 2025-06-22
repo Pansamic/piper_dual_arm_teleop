@@ -28,94 +28,64 @@
 #include <Eigen/Geometry>
 #include <arm_model.h>
 
-template<typename Derived>
+std::unique_ptr<ArmInterface> makeInterface(std::string type)
+{
+    if ( type == "simulation" )
+    {
+        return std::make_unique<ArmSimulationInterface>(PROJECT_PATH"/assets/mujoco_model/pathfinder.xml");
+    }
+    else if ( type == "hardware" )
+    {
+        return std::make_unique<ArmHardwareInterface>();
+    }
+}
+
 class ArmInterface
 {
 public:
-    void initialize()
-    {
-        static_cast<Derived*>(this)->initializeImpl();
-    }
+    virtual ~ArmInterface() = default;
 
-    bool isReady() const
-    {
-        return static_cast<const Derived*>(this)->isReadyImpl();
-    }
-
-    void setLeftJointControl(
+    virtual void setLeftJointControl(
         const Eigen::Vector<double,ArmModel::num_dof_>& joint_pos,
         const Eigen::Vector<double,ArmModel::num_dof_>& joint_vel,
-        const Eigen::Vector<double,ArmModel::num_dof_>& joint_feedforward_torque)
-    {
-        static_cast<Derived*>(this)->setLeftJointControl(joint_pos, joint_vel, joint_feedforward_torque);
-    }
-
-    void setLeftGripperControl(const double& position, const double& torque)
-    {
-        static_cast<Derived*>(this)->setLeftGripperControlImpl(position, torque);
-    }
-
-    void setRightJointControl(
+        const Eigen::Vector<double,ArmModel::num_dof_>& joint_feedforward_torque) = 0;
+    virtual void setLeftGripperControl(const double& position, const double& torque) = 0;
+    virtual void setRightJointControl(
         const Eigen::Vector<double,ArmModel::num_dof_>& joint_pos,
         const Eigen::Vector<double,ArmModel::num_dof_>& joint_vel,
-        const Eigen::Vector<double,ArmModel::num_dof_>& joint_feedforward_torque)
-    {
-        static_cast<Derived*>(this)->setRightJointControl(joint_pos, joint_vel, joint_feedforward_torque);
-    }
-
-    void setRightGripperControl(const double& position, const double& torque)
-    {
-        static_cast<Derived*>(this)->setRightGripperControlImpl(position, torque);
-    }
-
-    Eigen::Vector<double,ArmModel::num_dof_> getLeftJointPosition() const
-    {
-        return static_cast<const Derived*>(this)->getLeftJointPositionImpl();
-    }
-
-    Eigen::Vector<double,ArmModel::num_dof_> getLeftJointVelocity() const
-    {
-        return static_cast<const Derived*>(this)->getLeftJointVelocityImpl();
-    }
-
-    Eigen::Vector<double,ArmModel::num_dof_> getRightJointPosition() const
-    {
-        return static_cast<const Derived*>(this)->getRightJointPositionImpl();
-    }
-
-    Eigen::Vector<double,ArmModel::num_dof_> getRightJointVelocity() const
-    {
-        return static_cast<const Derived*>(this)->getRightJointVelocityImpl();
-    }
+        const Eigen::Vector<double,ArmModel::num_dof_>& joint_feedforward_torque) = 0;
+    virtual void setRightGripperControl(const double& position, const double& torque) = 0;
+    virtual const Eigen::Vector<double,ArmModel::num_dof_>& getLeftJointPosition() const;
+    virtual const Eigen::Vector<double,ArmModel::num_dof_>& getLeftJointVelocity() const;
+    virtual const Eigen::Vector<double,ArmModel::num_dof_>& getLeftJointTorque() const;
+    virtual const Eigen::Vector<double,ArmModel::num_dof_>& getRightJointPosition() const;
+    virtual const Eigen::Vector<double,ArmModel::num_dof_>& getRightJointVelocity() const;
+    virtual const Eigen::Vector<double,ArmModel::num_dof_>& getRightJointTorque() const;
 };
 
-class ArmSimulationInterface : public ArmInterface<ArmSimulationInterface>
+class ArmSimulationInterface final : public ArmInterface
 {
 public:
-    ArmSimulationInterface();
+    ArmSimulationInterface(const char* mujoco_file_path);
     ~ArmSimulationInterface();
 
-    void initializeImpl();
-    bool isReadyImpl();
     void setLeftJointControl(
         const Eigen::Vector<double,ArmModel::num_dof_>& joint_pos,
         const Eigen::Vector<double,ArmModel::num_dof_>& joint_vel,
-        const Eigen::Vector<double,ArmModel::num_dof_>& joint_feedforward_torque);
-    void setLeftGripperControlImpl(const double& position, const double& torque);
+        const Eigen::Vector<double,ArmModel::num_dof_>& joint_feedforward_torque) override;
+    void setLeftGripperControl(const double& position, const double& torque) override;
     void setRightJointControl(
         const Eigen::Vector<double,ArmModel::num_dof_>& joint_pos,
         const Eigen::Vector<double,ArmModel::num_dof_>& joint_vel,
-        const Eigen::Vector<double,ArmModel::num_dof_>& joint_feedforward_torque);
-    void setRightGripperControlImpl(const double& position, const double& torque);
-    const Eigen::Vector<double,ArmModel::num_dof_>& getLeftJointPositionImpl() const;
-    const Eigen::Vector<double,ArmModel::num_dof_>& getLeftJointVelocityImpl() const;
-    const Eigen::Vector<double,ArmModel::num_dof_>& getLeftJointTorqueImpl() const;
-    const Eigen::Vector<double,ArmModel::num_dof_>& getRightJointPositionImpl() const;
-    const Eigen::Vector<double,ArmModel::num_dof_>& getRightJointVelocityImpl() const;
-    const Eigen::Vector<double,ArmModel::num_dof_>& getRightJointTorqueImpl() const;
+        const Eigen::Vector<double,ArmModel::num_dof_>& joint_feedforward_torque) override;
+    void setRightGripperControl(const double& position, const double& torque) override;
+    const Eigen::Vector<double,ArmModel::num_dof_>& getLeftJointPosition() const override;
+    const Eigen::Vector<double,ArmModel::num_dof_>& getLeftJointVelocity() const override;
+    const Eigen::Vector<double,ArmModel::num_dof_>& getLeftJointTorque() const override;
+    const Eigen::Vector<double,ArmModel::num_dof_>& getRightJointPosition() const override;
+    const Eigen::Vector<double,ArmModel::num_dof_>& getRightJointVelocity() const override;
+    const Eigen::Vector<double,ArmModel::num_dof_>& getRightJointTorque() const override;
 private:
-
-    const char* mujoco_file_ = PROJECT_PATH"/assets/mujoco_model/pathfinder.xml";
     const double syncMisalign = 0.1;        // maximum mis-alignment before re-sync (simulation seconds)
     const double simRefreshFraction = 0.7;  // fraction of refresh available for simulation
     const int kErrorLength = 1024;          // load error string length
@@ -125,7 +95,7 @@ private:
     mjModel* m = nullptr; // MuJoCo model
     mjData* d = nullptr; // MuJoCo data
 
-    bool running_;
+    std::atomic<bool> running_;
 
     std::unique_ptr<mujoco::Simulate> sim_;
     std::thread physics_thread_;
@@ -152,33 +122,31 @@ private:
     mjModel* loadModel(const char* file);
     const char* diverged(int disableflags, const mjData* d);
     void physicsLoop();
-    void threadPhysics();
+    void threadPhysics(const char* mujoco_file_path);
 };
 
-class ArmHardwareInterface : public ArmInterface<ArmHardwareInterface>
+class ArmHardwareInterface final : public ArmInterface
 {
 public:
     ArmHardwareInterface(const char* left_arm_can_name, const char* right_arm_can_name);
     ~ArmHardwareInterface();
 
-    void initializeImpl();
-    bool isReadyImpl();
     void setLeftJointControl(
         const Eigen::Vector<double,ArmModel::num_dof_>& joint_pos,
         const Eigen::Vector<double,ArmModel::num_dof_>& joint_vel,
-        const Eigen::Vector<double,ArmModel::num_dof_>& joint_feedforward_torque);
-    void setLeftGripperControlImpl(const double& position, const double& torque);
+        const Eigen::Vector<double,ArmModel::num_dof_>& joint_feedforward_torque) override;
+    void setLeftGripperControl(const double& position, const double& torque) override;
     void setRightJointControl(
         const Eigen::Vector<double,ArmModel::num_dof_>& joint_pos,
         const Eigen::Vector<double,ArmModel::num_dof_>& joint_vel,
-        const Eigen::Vector<double,ArmModel::num_dof_>& joint_feedforward_torque);
-    void setRightGripperControlImpl(const double& position, const double& torque);
-    const Eigen::Vector<double,ArmModel::num_dof_>& getLeftJointPositionImpl() const;
-    const Eigen::Vector<double,ArmModel::num_dof_>& getLeftJointVelocityImpl() const;
-    const Eigen::Vector<double,ArmModel::num_dof_>& getLeftJointTorqueImpl() const;
-    const Eigen::Vector<double,ArmModel::num_dof_>& getRightJointPositionImpl() const;
-    const Eigen::Vector<double,ArmModel::num_dof_>& getRightJointVelocityImpl() const;
-    const Eigen::Vector<double,ArmModel::num_dof_>& getRightJointTorqueImpl() const;
+        const Eigen::Vector<double,ArmModel::num_dof_>& joint_feedforward_torque) override;
+    void setRightGripperControl(const double& position, const double& torque) override;
+    const Eigen::Vector<double,ArmModel::num_dof_>& getLeftJointPosition() const override;
+    const Eigen::Vector<double,ArmModel::num_dof_>& getLeftJointVelocity() const override;
+    const Eigen::Vector<double,ArmModel::num_dof_>& getLeftJointTorque() const override;
+    const Eigen::Vector<double,ArmModel::num_dof_>& getRightJointPosition() const override;
+    const Eigen::Vector<double,ArmModel::num_dof_>& getRightJointVelocity() const override;
+    const Eigen::Vector<double,ArmModel::num_dof_>& getRightJointTorque() const override;
 
 private:
     enum ArmControlMode
