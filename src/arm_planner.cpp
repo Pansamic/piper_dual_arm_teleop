@@ -10,23 +10,38 @@
  */
 #include <arm_planner.h>
 
-ArmPlanner::ArmPlanner():
-    active_trajectory_id_(0)
+ArmPlanner::ArmPlanner(size_t update_interval, size_t waypoint_length, size_t trajectory_length):
+    update_interval_(update_interval), waypoint_length_(waypoint_length), trajectory_length_(trajectory_length),
+    left_arm_trajectory_buffer_(trajectory_length), right_arm_trajectory_buffer_(trajectory_length),
+    left_arm_last_end_waypoint_(Eigen::Vector<double, ArmModel::num_dof_>::Zero()),
+    right_arm_last_end_waypoint_(Eigen::Vector<double, ArmModel::num_dof_>::Zero())
 {
 
 }
 
-ArmPlanner::~ArmPlanner()
-{
-
-}
-
-void ArmPlanner::plan()
+void ArmPlanner::plan(
+    const Eigen::Vector<double,ArmModel::num_dof_>& begin,
+    const Eigen::Vector<double,ArmModel::num_dof_>& end)
 {
     
 }
 
-const ArmPlanner::WayPoint& ArmPlanner::getWayPoint(unsigned int id) const
+void ArmPlanner::getLeftArmWayPoint(WayPoint& waypoint)
 {
-    return trajectory_buffer_[active_trajectory_id_][id];
+
+    if ( this->left_arm_trajectory_buffer_.empty() )
+    {
+        throw std::underflow_error("trajectory empty");
+    }
+    this->left_arm_trajectory_buffer_.read(waypoint);
+}
+
+void ArmPlanner::getRightArmWayPoint(WayPoint& waypoint)
+{
+
+    if ( this->right_arm_trajectory_buffer_.empty() )
+    {
+        throw std::underflow_error("trajectory empty");
+    }
+    this->right_arm_trajectory_buffer_.read(waypoint);
 }
