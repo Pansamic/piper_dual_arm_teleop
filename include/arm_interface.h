@@ -28,18 +28,6 @@
 #include <Eigen/Geometry>
 #include <arm_model.h>
 
-std::unique_ptr<ArmInterface> makeInterface(std::string type)
-{
-    if ( type == "simulation" )
-    {
-        return std::make_unique<ArmSimulationInterface>(PROJECT_PATH"/assets/mujoco_model/pathfinder.xml");
-    }
-    else if ( type == "hardware" )
-    {
-        return std::make_unique<ArmHardwareInterface>();
-    }
-}
-
 class ArmInterface
 {
 public:
