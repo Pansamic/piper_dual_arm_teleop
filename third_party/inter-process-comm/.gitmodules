@@ -1,0 +1,3 @@
+[submodule "itc"]
+	path = itc
+	url = git@github.com:geniusdo/inter-thread-comm.git
