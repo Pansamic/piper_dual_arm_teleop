@@ -13,13 +13,14 @@ add_definitions(
     -DPROJECT_PATH="${CMAKE_CURRENT_SOURCE_DIR}"
 )
 
-add_executable(control
+add_executable(deploy
     src/arm_interface.cpp
-    src/arm_control.cpp
-    src/main.cpp
-    src/log.cpp
+    src/arm_controller.cpp
+    src/arm_model.cpp
+    src/arm_planner.cpp
+    src/deploy.cpp
 )
-target_include_directories(control PRIVATE
+target_include_directories(deploy PRIVATE
     include
     third_party/asio-1.34.2/include
     third_party/eigen-3.4.0
@@ -27,7 +28,7 @@ target_include_directories(control PRIVATE
     third_party/inter-process-comm/itc
     third_party/inter-process-comm
 )
-target_link_libraries(control
+target_link_libraries(deploy
     pthread
 )
 
@@ -35,10 +36,12 @@ if(BUILD_TESTING)
     set(OpenGL_GL_PREFERENCE "GLVND")
     find_package(OpenGL REQUIRED)
     find_package(glfw3 REQUIRED)
-    add_executable(sim
-        src/arm_control.cpp
+    add_executable(simulate
+        src/arm_interface.cpp
+        src/arm_controller.cpp
+        src/arm_model.cpp
+        src/arm_planner.cpp
         src/sim.cpp
-        src/log.cpp
         third_party/mujoco-3.3.2-linux-x86_64/simulate/glfw_adapter.cc
         third_party/mujoco-3.3.2-linux-x86_64/simulate/glfw_dispatch.cc
         third_party/mujoco-3.3.2-linux-x86_64/simulate/platform_ui_adapter.cc
@@ -47,7 +50,7 @@ if(BUILD_TESTING)
         third_party/lodepng/lodepng_fuzzer.cpp
         third_party/lodepng/lodepng_util.cpp
     )
-    target_include_directories(sim PRIVATE
+    target_include_directories(simulate PRIVATE
         include
         third_party/spdlog-1.15.3/include
         third_party/asio-1.34.2/include
@@ -58,10 +61,10 @@ if(BUILD_TESTING)
         third_party/inter-process-comm/itc
         third_party/inter-process-comm
     )
-    target_link_directories(sim PRIVATE
+    target_link_directories(simulate PRIVATE
         third_party/mujoco-3.3.2-linux-x86_64/lib
     )
-    target_link_libraries(sim PRIVATE
+    target_link_libraries(simulate PRIVATE
         OpenGL::GL
         glfw
         libmujoco.so

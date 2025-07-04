@@ -12,15 +12,24 @@
 #define __TELEOP_TASK_RUNNER_H__
 
 #include <Eigen/Core>
+#include <Eigen/Geometry>
+#include <asio.hpp>
+#include <itc/backend/RingBuf.hpp>
+#include <comm_channel.hpp>
+#include <msgs/whole_body_msg/whole_body_msg.h>
+#include <msgs/whole_body_msg/whole_body_receiver.hpp>
+#include <msgs/whole_body_msg/whole_body_sender.hpp>
+#include <joint_state.h>
 #include <arm_model.h>
 #include <arm_controller.h>
 #include <arm_planner.h>
+#include <arm_interface.h>
 
 class TeleopTaskRunner
 {
 public:
-    TeleopTaskRunner();
-    ~TeleopTaskRunner();
+    TeleopTaskRunner(std::shared_ptr<ArmInterface> interface, size_t freq_plan, size_t freq_ctrl);
+    ~TeleopTaskRunner() = default;
     void run();
 private:
     static const Eigen::Vector3d head_position_;
@@ -29,52 +38,62 @@ private:
     static const Eigen::Matrix4d left_arm_base_transform_;
     static const Eigen::Matrix4d right_arm_base_transform_;
 
+    std::atomic<bool> running_;
+    size_t freq_plan_;
+    size_t freq_ctrl_;
+
+    asio::io_context io_context_;
+    CommChannel<ChannelMode::UDP, WholeBodySender, WholeBodyReceiver> channel_;
+    MsgQueue send_mq_;
+    MsgQueue recv_mq_;
+
     Eigen::Vector3d left_hand_target_pos_;
     Eigen::Quaterniond left_hand_target_orientation_;
     Eigen::Matrix4d left_hand_target_pose_;
     Eigen::Quaterniond left_hand_actual_orientation_;
-    Eigen::Vector<double,ArmModel::num_dof_> left_arm_target_joint_pos_ = Eigen::Vector<double,ArmModel::num_dof_>::Zero();
-    Eigen::Vector<double,ArmModel::num_dof_> left_arm_target_joint_vel_ = Eigen::Vector<double,ArmModel::num_dof_>::Zero();
-    Eigen::Vector<double,ArmModel::num_dof_> left_arm_target_joint_torque_ = Eigen::Vector<double,ArmModel::num_dof_>::Zero();
-    Eigen::Vector<double,ArmModel::num_dof_> left_arm_actual_joint_pos_ = Eigen::Vector<double,ArmModel::num_dof_>::Zero();
-    Eigen::Vector<double,ArmModel::num_dof_> left_arm_actual_joint_vel_ = Eigen::Vector<double,ArmModel::num_dof_>::Zero();
-    Eigen::Vector<double,ArmModel::num_dof_> left_arm_actual_joint_torque_ = Eigen::Vector<double,ArmModel::num_dof_>::Zero();
-    double left_gripper_control = 0;
+    Eigen::Vector3d right_hand_target_pos_;
+    Eigen::Quaterniond right_hand_target_orientation_;
+    Eigen::Matrix4d right_hand_target_pose_;
+    Eigen::Quaterniond right_hand_actual_orientation_;
 
-    Eigen::Vector3d right_hand_target_pos(0.542092536439244,-0.500792536439244,0.398868333963670);
-    Eigen::Quaterniond right_hand_target_orientation(0.000044497177102,-0.382683431921232,-0.923879531439719,-0.000018431334243);
-    Eigen::Matrix4d right_hand_target_pose = Eigen::Matrix4d::Identity();
-    Eigen::Quaterniond right_hand_actual_orientation = Eigen::Quaterniond::Identity();
-    Eigen::Vector<double,ArmModel::num_dof_> right_arm_target_joint_pos = Eigen::Vector<double,ArmModel::num_dof_>::Zero();
-    Eigen::Vector<double,ArmModel::num_dof_> right_arm_target_joint_vel = Eigen::Vector<double,ArmModel::num_dof_>::Zero();
-    Eigen::Vector<double,ArmModel::num_dof_> right_arm_target_joint_torque = Eigen::Vector<double,ArmModel::num_dof_>::Zero();
-    Eigen::Vector<double,ArmModel::num_dof_> right_arm_actual_joint_pos = Eigen::Vector<double,ArmModel::num_dof_>::Zero();
-    Eigen::Vector<double,ArmModel::num_dof_> right_arm_actual_joint_vel = Eigen::Vector<double,ArmModel::num_dof_>::Zero();
-    Eigen::Vector<double,ArmModel::num_dof_> right_arm_actual_joint_torque = Eigen::Vector<double,ArmModel::num_dof_>::Zero();
-    double right_gripper_control = 0;
+    JointState left_arm_target_joint_state_;
+    JointState left_arm_actual_joint_state_;
+    JointState right_arm_target_joint_state_;
+    JointState right_arm_actual_joint_state_;
 
-    std::array<Eigen::Matrix4d,ArmModel::num_link_> link_transform;
-    std::array<Eigen::Matrix4d,ArmModel::num_link_> link_com_transform;
-    std::array<Eigen::Matrix<double,6,ArmModel::num_dof_>,ArmModel::num_link_> link_com_jacobian;
-    std::array<Eigen::Matrix<double,6,ArmModel::num_dof_>,ArmModel::num_link_> link_com_jacobian_dot;
-    std::array<Eigen::Vector3d,ArmModel::num_link_> link_lin_vel;
-    std::array<Eigen::Vector3d,ArmModel::num_link_> link_ang_vel;
-    std::array<Eigen::Vector3d,ArmModel::num_link_> link_com_lin_vel;
-    std::array<Eigen::Vector3d,ArmModel::num_link_> link_com_ang_vel;
-    Eigen::Matrix<double,ArmModel::num_dof_,ArmModel::num_dof_> generalized_mass_matrix;
-    Eigen::Matrix<double,ArmModel::num_dof_,ArmModel::num_dof_> centrifugal_coriolis_matrix;
-    Eigen::Vector<double,ArmModel::num_dof_> gravity_compensate;
+    double left_gripper_control_ = 0;
+    double right_gripper_control_ = 0;
 
-    std::unique_ptr<ArmModel> left_arm = std::make_unique<ArmModel>(left_arm_base_transform);
-    std::unique_ptr<ArmModel> right_arm = std::make_unique<ArmModel>(right_arm_base_transform);
+    std::shared_ptr<ArmInterface> interface_;
+    std::shared_ptr<ArmModel> left_arm_model_;
+    std::shared_ptr<ArmModel> right_arm_model_;
+    std::unique_ptr<ArmController> controller_;
+    std::unique_ptr<ArmPlanner> planner_;
 
-    std::function<void(Eigen::Vector<double,6>)> getActualJointPosition_;
-    std::function<void(Eigen::Vector<double,6>)> getActualJointVelocity_;
-    std::function<void(Eigen::Vector<double,6>)> getActualJointTorque_;
-    std::function<void()> setJointPosition_;
-    std::function<void()> setJointVelocity_;
-    std::function<void()> setJointTorque_;
-    std::function<void()> setJointBiasTorque_;
+    /* trajectory amount in buffer, indicates how many continuous
+     * trajectories are stored in buffer. */
+    const size_t traj_buf_size_ = 3;
+
+    /* This buffer stores the inverse kinematics joint state
+     * for planner. This buffer is assigned to planner object
+     * when planner is created and planner can access this buffer
+     * to get target joint state from task runner. */
+    RingBuffer<JointState> left_arm_target_joint_state_buffer_;
+    RingBuffer<JointState> right_arm_target_joint_state_buffer_;
+
+    /* Trajectory is a sequence of joint states. This buffer is assigned to
+     * planner object and controller object and they share this buffer 
+     * because the planner will write trajectory joint states into this 
+     * buffer and controller will read trajectory from this buffer.*/
+    RingBuffer<JointState> left_arm_trajectory_buffer_;
+    RingBuffer<JointState> right_arm_trajectory_buffer_;
+
+    RingBuffer<Eigen::Vector<double,ArmModel::num_dof_>> left_arm_target_joint_pos_history_; 
+    RingBuffer<Eigen::Vector<double,ArmModel::num_dof_>> right_arm_target_joint_pos_history_;
+
+    void scaleLeftHandPose(Eigen::Matrix4d& pose);
+    void scaleRightHandPose(Eigen::Matrix4d& pose);
+    bool checkInvalidTargetConfiguration(const Eigen::Vector<double,ArmModel::num_dof_>& joint_pos);
 };
 
 #endif // __TELEOP_TASK_RUNNER_H__

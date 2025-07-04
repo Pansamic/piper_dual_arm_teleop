@@ -1,5 +1,5 @@
 /**
- * @file arm_interface.cpp
+ * @file arm_hardware_interface.cpp
  * @author pansamic (pansamic@foxmail.com)
  * @brief AgileX Piper robotic arm communication and packet parser.
  * @version 0.1
@@ -9,413 +9,10 @@
  * 
  */
 #include <unistd.h>
-#include <poll.h>
-#include <net/if.h>
-#include <sys/ioctl.h>
-#include <sys/socket.h>
-#include <linux/can.h>
-#include <linux/can/raw.h>
-#include <iostream>
-#include <cstdint>
-#include <cerrno>
-#include <cstring>
-#include <log.h>
+#include <log.hpp>
 #include <arm_interface.h>
+#include <arm_hardware_interface.h>
 
-ArmSimulationInterface::ArmSimulationInterface(const char* mujoco_file_path)
-{
-    mjvCamera cam;
-    mjv_defaultCamera(&cam);
-
-    mjvOption opt;
-    mjv_defaultOption(&opt);
-
-    mjvPerturb pert;
-    mjv_defaultPerturb(&pert);
-
-    // simulate object encapsulates the UI
-    this->sim_ = std::make_unique<mujoco::Simulate>(
-        std::make_unique<mujoco::GlfwAdapter>(),
-        &cam, &opt, &pert, /* is_passive = */ false
-    );
-
-    // start physics thread
-    std::thread physicsthreadhandle(&ArmSimulationInterface::threadPhysics, this, mujoco_file_path);
-
-    // start simulation UI loop (blocking call)
-    std::thread([this](){this->sim_->RenderLoop();});
-}
-
-ArmSimulationInterface::~ArmSimulationInterface()
-{
-    this->render_thread_.join();
-    this->physics_thread_.join();
-}
-
-void ArmSimulationInterface::setLeftJointControl(
-    const Eigen::Vector<double,ArmModel::num_dof_>& joint_pos,
-    const Eigen::Vector<double,ArmModel::num_dof_>& joint_vel,
-    const Eigen::Vector<double,ArmModel::num_dof_>& joint_feedforward_torque)
-{
-    this->left_target_joint_pos_ = joint_pos;
-    this->left_target_joint_vel_ = joint_vel;
-    this->left_target_joint_fd_torq_ = joint_feedforward_torque;
-}
-
-void ArmSimulationInterface::setRightJointControl(
-    const Eigen::Vector<double,ArmModel::num_dof_>& joint_pos,
-    const Eigen::Vector<double,ArmModel::num_dof_>& joint_vel,
-    const Eigen::Vector<double,ArmModel::num_dof_>& joint_feedforward_torque)
-{
-    this->right_target_joint_pos_ = joint_pos;
-    this->right_target_joint_vel_ = joint_vel;
-    this->right_target_joint_fd_torq_ = joint_feedforward_torque;
-}
-
-void ArmSimulationInterface::setLeftGripperControl(const double& position, const double& torque)
-{
-    /* @todo Add position/torque control logic */
-    this->d->ctrl[6] = position;
-}
-
-void ArmSimulationInterface::setRightGripperControl(const double& position, const double& torque)
-{
-    /* @todo Add position/torque control logic */
-    this->d->ctrl[11] = position;
-}
-
-const Eigen::Vector<double,ArmModel::num_dof_>& ArmSimulationInterface::getLeftJointPosition() const
-{
-    std::lock_guard(this->left_joints_mutex_);
-    return this->left_actual_joint_pos_;
-}
-
-const Eigen::Vector<double,ArmModel::num_dof_>& ArmSimulationInterface::getLeftJointVelocity() const
-{
-    std::lock_guard(this->left_joints_mutex_);
-    return this->left_actual_joint_vel_;
-}
-
-const Eigen::Vector<double,ArmModel::num_dof_>& ArmSimulationInterface::getLeftJointTorque() const
-{
-    std::lock_guard(this->left_joints_mutex_);
-    return this->left_actual_joint_torq_;
-}
-
-const Eigen::Vector<double,ArmModel::num_dof_>& ArmSimulationInterface::getRightJointPosition() const
-{
-    std::lock_guard(this->right_joints_mutex_);
-    return this->right_actual_joint_pos_;
-}
-
-const Eigen::Vector<double,ArmModel::num_dof_>& ArmSimulationInterface::getRightJointVelocity() const
-{
-    std::lock_guard(this->right_joints_mutex_);
-    return this->right_actual_joint_vel_;
-}
-
-const Eigen::Vector<double,ArmModel::num_dof_>& ArmSimulationInterface::getRightJointTorque() const
-{
-    std::lock_guard(this->right_joints_mutex_);
-    return this->right_actual_joint_torq_;
-}
-
-void ArmSimulationInterface::setJointPDControl()
-{
-    Eigen::Vector<double, ArmModel::num_dof_> left_control =
-        this->joint_kp_ * (this->left_target_joint_pos_ - this->left_actual_joint_pos_) + this->joint_kd_ * (left_target_joint_vel_ - left_actual_joint_vel_) + left_target_joint_fd_torq_;
-    Eigen::Vector<double, ArmModel::num_dof_> right_control =
-        this->joint_kp_ * (this->right_target_joint_pos_ - this->right_actual_joint_pos_) + this->joint_kd_ * (right_target_joint_vel_ - right_actual_joint_vel_) + right_target_joint_fd_torq_;
-
-    for ( int i=0 ; i<ArmModel::num_dof_ ; i++ )
-    {
-        this->d->ctrl[i] = left_control[i];
-        this->d->ctrl[i+ArmModel::num_dof_+1] = right_control[i]; // +1 for left gripper joint
-    }
-}
-
-const char* ArmSimulationInterface::diverged(int disableflags, const mjData* d) {
-    if (disableflags & mjDSBL_AUTORESET) {
-        for (mjtWarning w : {mjWARN_BADQACC, mjWARN_BADQVEL, mjWARN_BADQPOS}) {
-            if (d->warning[w].number > 0) {
-                return mju_warningText(w, d->warning[w].lastinfo);
-            }
-        }
-    }
-    return nullptr;
-}
-
-mjModel* ArmSimulationInterface::loadModel(const char* file)
-{
-    // this copy is needed so that the mujoco::sample_util::strlen call below compiles
-    char filename[mujoco::Simulate::kMaxFilenameLength];
-    mujoco::sample_util::strcpy_arr(filename, file);
-
-    // make sure filename is not empty
-    if (!filename[0]) {
-        return nullptr;
-    }
-
-    // load and compile
-    char loadError[kErrorLength] = "";
-    mjModel* mnew = 0;
-    auto load_start = mujoco::Simulate::Clock::now();
-    if (mujoco::sample_util::strlen_arr(filename)>4 &&
-        !std::strncmp(filename + mujoco::sample_util::strlen_arr(filename) - 4, ".mjb", mujoco::sample_util::sizeof_arr(filename) - mujoco::sample_util::strlen_arr(filename)+4)) {
-        mnew = mj_loadModel(filename, nullptr);
-        if (!mnew) {
-            mujoco::sample_util::strcpy_arr(loadError, "could not load binary model");
-        }
-    } else {
-        mnew = mj_loadXML(filename, nullptr, loadError, kErrorLength);
-
-        // remove trailing newline character from loadError
-        if (loadError[0]) {
-            int error_length = mujoco::sample_util::strlen_arr(loadError);
-            if (loadError[error_length-1] == '\n') {
-                loadError[error_length-1] = '\0';
-            }
-        }
-    }
-    auto load_interval = mujoco::Simulate::Clock::now() - load_start;
-    double load_seconds = std::chrono::duration<double>(load_interval).count();
-
-    if (!mnew) {
-        LOG_ERROR(loadError);
-        mujoco::sample_util::strcpy_arr(this->sim_->load_error, loadError);
-        return nullptr;
-    }
-
-    // compiler warning: print and pause
-    if (loadError[0]) {
-        // mj_forward() below will print the warning message
-        LOG_ERROR("Model compiled, but simulation warning (paused):{}", loadError);
-        this->sim_->run = 0;
-    }
-
-    // if no error and load took more than 1/4 seconds, report load time
-    else if (load_seconds > 0.25) {
-        mujoco::sample_util::sprintf_arr(loadError, "Model loaded in %.2g seconds", load_seconds);
-    }
-
-    mujoco::sample_util::strcpy_arr(this->sim_->load_error, loadError);
-
-    return mnew;
-}
-
-// simulate in background thread (while rendering in main thread)
-void ArmSimulationInterface::physicsLoop()
-{
-    // cpu-sim syncronization point
-    std::chrono::time_point<mujoco::Simulate::Clock> syncCPU;
-    mjtNum syncSim = 0;
-
-    // run until asked to exit
-    while (!this->sim_->exitrequest.load())
-    {
-        if (this->sim_->droploadrequest.load()) {
-            this->sim_->LoadMessage(this->sim_->dropfilename);
-            mjModel* mnew = loadModel(this->sim_->dropfilename);
-            this->sim_->droploadrequest.store(false);
-
-            mjData* dnew = nullptr;
-            if (mnew) dnew = mj_makeData(mnew);
-            if (dnew) {
-                this->sim_->Load(mnew, dnew, this->sim_->dropfilename);
-
-                // lock the sim mutex
-                const std::unique_lock<std::recursive_mutex> lock(this->sim_->mtx);
-
-                mj_deleteData(d);
-                mj_deleteModel(m);
-
-                m = mnew;
-                d = dnew;
-                mj_forward(m, d);
-
-            } else {
-                this->sim_->LoadMessageClear();
-            }
-        }
-
-        if (this->sim_->uiloadrequest.load()) {
-            this->sim_->uiloadrequest.fetch_sub(1);
-            this->sim_->LoadMessage(this->sim_->filename);
-            mjModel* mnew = loadModel(this->sim_->filename);
-            mjData* dnew = nullptr;
-            if (mnew) dnew = mj_makeData(mnew);
-            if (dnew) {
-                this->sim_->Load(mnew, dnew, this->sim_->filename);
-
-                // lock the sim mutex
-                const std::unique_lock<std::recursive_mutex> lock(this->sim_->mtx);
-
-                mj_deleteData(d);
-                mj_deleteModel(m);
-
-                m = mnew;
-                d = dnew;
-                mj_forward(m, d);
-
-            } else {
-                this->sim_->LoadMessageClear();
-            }
-        }
-
-        // sleep for 1 ms or yield, to let main thread run
-        //  yield results in busy wait - which has better timing but kills battery life
-        if (this->sim_->run && this->sim_->busywait) {
-            std::this_thread::yield();
-        } else {
-            std::this_thread::sleep_for(std::chrono::milliseconds(1));
-        }
-
-        {
-            // lock the sim mutex
-            const std::unique_lock<std::recursive_mutex> lock(this->sim_->mtx);
-
-            // run only if model is present
-            if (m) {
-                // running
-                if (this->sim_->run) {
-                    bool stepped = false;
-
-                    // record cpu time at start of iteration
-                    const auto startCPU = mujoco::Simulate::Clock::now();
-
-                    // elapsed CPU and simulation time since last sync
-                    const auto elapsedCPU = startCPU - syncCPU;
-                    double elapsedSim = d->time - syncSim;
-
-                    // requested slow-down factor
-                    double slowdown = 100 / this->sim_->percentRealTime[this->sim_->real_time_index];
-
-                    // misalignment condition: distance from target sim time is bigger than syncmisalign
-                    bool misaligned =
-                        std::abs(std::chrono::duration<double>(elapsedCPU).count()/slowdown - elapsedSim) > syncMisalign;
-
-                    // out-of-sync (for any reason): reset sync times, step
-                    if (elapsedSim < 0 || elapsedCPU.count() < 0 || syncCPU.time_since_epoch().count() == 0 || misaligned || this->sim_->speed_changed) {
-                        // re-sync
-                        syncCPU = startCPU;
-                        syncSim = d->time;
-                        this->sim_->speed_changed = false;
-
-                        // run single step, let next iteration deal with timing
-                        for ( int i=0 ; i<ArmModel::num_dof_ ; i++ )
-                        {
-                            left_actual_joint_pos_(i) = this->d->qpos[i];
-                            right_actual_joint_pos_(i) = this->d->qpos[i+ArmModel::num_dof_+1];  // +1 to skip left gripper joint
-                            left_actual_joint_vel_(i) = this->d->qvel[i];
-                            right_actual_joint_vel_(i) = this->d->qvel[i+ArmModel::num_dof_+1];  // +1 to skip left gripper joint
-                            left_actual_joint_torq_(i) = this->d->qfrc_actuator[i];
-                            right_actual_joint_torq_(i) = this->d->qfrc_actuator[i+ArmModel::num_dof_+1]; // +1 to skip left gripper joint
-                        }
-                        mj_step1(m, d);
-                        this->setJointPDControl();
-                        mj_step2(m, d);
-                        const char* message = diverged(m->opt.disableflags, d);
-                        if (message) {
-                            this->sim_->run = 0;
-                            mujoco::sample_util::strcpy_arr(this->sim_->load_error, message);
-                        } else {
-                            stepped = true;
-                        }
-                    }
-
-                    // in-sync: step until ahead of cpu
-                    else {
-                        bool measured = false;
-                        mjtNum prevSim = d->time;
-
-                        double refreshTime = simRefreshFraction/this->sim_->refresh_rate;
-
-                        // step while sim lags behind cpu and within refreshTime
-                        while (std::chrono::duration<double>((d->time - syncSim)*slowdown) < mujoco::Simulate::Clock::now() - syncCPU &&
-                            mujoco::Simulate::Clock::now() - startCPU < std::chrono::duration<double>(refreshTime)) {
-                        // measure slowdown before first step
-                        if (!measured && elapsedSim) {
-                            this->sim_->measured_slowdown =
-                                std::chrono::duration<double>(elapsedCPU).count() / elapsedSim;
-                            measured = true;
-                        }
-
-                        // inject noise
-                        this->sim_->InjectNoise();
-
-                        // call mj_step
-                        for ( int i=0 ; i<ArmModel::num_dof_ ; i++ )
-                        {
-                            left_actual_joint_pos_(i) = this->d->qpos[i];
-                            right_actual_joint_pos_(i) = this->d->qpos[i+ArmModel::num_dof_+1];  // +1 to skip left gripper joint
-                            left_actual_joint_vel_(i) = this->d->qvel[i];
-                            right_actual_joint_vel_(i) = this->d->qvel[i+ArmModel::num_dof_+1];  // +1 to skip left gripper joint
-                            left_actual_joint_torq_(i) = this->d->qfrc_actuator[i];
-                            right_actual_joint_torq_(i) = this->d->qfrc_actuator[i+ArmModel::num_dof_+1]; // +1 to skip left gripper joint
-                        }
-                        mj_step1(m, d);
-                        this->setJointPDControl();
-                        mj_step2(m, d);
-                        const char* message = diverged(m->opt.disableflags, d);
-                        if (message) {
-                            this->sim_->run = 0;
-                            mujoco::sample_util::strcpy_arr(this->sim_->load_error, message);
-                        } else {
-                            stepped = true;
-                        }
-
-                        // break if reset
-                        if (d->time < prevSim) {
-                            break;
-                        }
-                        }
-                    }
-
-                    // save current state to history buffer
-                    if (stepped) {
-                        this->sim_->AddToHistory();
-                    }
-                }
-
-                // paused
-                else {
-                    // run mj_forward, to update rendering and joint sliders
-                    mj_forward(m, d);
-                    this->sim_->speed_changed = true;
-                }
-            }
-        }  // release std::lock_guard<std::mutex>
-    }
-}
-
-void ArmSimulationInterface::threadPhysics(const char* mujoco_file_path)
-{
-    this->sim_->LoadMessage(mujoco_file_path);
-    m = this->loadModel(mujoco_file_path);
-    if (m) {
-      // lock the sim mutex
-      const std::unique_lock<std::recursive_mutex> lock(this->sim_->mtx);
-
-      d = mj_makeData(m);
-    }
-    if (d) {
-      this->sim_->Load(m, d, mujoco_file_path);
-
-      // lock the this->sim_ mutex
-      const std::unique_lock<std::recursive_mutex> lock(this->sim_->mtx);
-
-      mj_forward(m, d);
-
-    } else {
-      this->sim_->LoadMessageClear();
-    }
-
-    this->physicsLoop();
-
-    // delete everything we allocated
-    mj_deleteData(d);
-    mj_deleteModel(m);
-}
 
 /**
  * @brief Initialize SocketCAN
@@ -523,8 +120,8 @@ ArmHardwareInterface::~ArmHardwareInterface()
     {
         close(this->right_can_socket_);
     }
-    running_ = false;
-    read_thread_.join();
+    this->running_ = false;
+    this->read_thread_.join();
     LOG_INFO("Arm Interface is terminated.");
 }
 
@@ -568,6 +165,12 @@ const Eigen::Vector<double,ArmModel::num_dof_>& ArmHardwareInterface::getLeftJoi
     return this->left_actual_joint_vel_;
 }
 
+const Eigen::Vector<double,ArmModel::num_dof_>& ArmHardwareInterface::getLeftJointAcceleration() const
+{
+    // std::lock_guard(this->left_joints_mutex_);
+    return Eigen::Vector<double,ArmModel::num_dof_>::Zero();
+}
+
 const Eigen::Vector<double,ArmModel::num_dof_>& ArmHardwareInterface::getLeftJointTorque() const
 {
     std::lock_guard(this->left_joints_mutex_);
@@ -584,6 +187,12 @@ const Eigen::Vector<double,ArmModel::num_dof_>& ArmHardwareInterface::getRightJo
 {
     std::lock_guard(this->right_joints_mutex_);
     return this->right_actual_joint_vel_;
+}
+
+const Eigen::Vector<double,ArmModel::num_dof_>& ArmHardwareInterface::getRightJointAcceleration() const
+{
+    // std::lock_guard(this->right_joints_mutex_);
+    return Eigen::Vector<double,ArmModel::num_dof_>::Zero();
 }
 
 const Eigen::Vector<double,ArmModel::num_dof_>& ArmHardwareInterface::getRightJointTorque() const

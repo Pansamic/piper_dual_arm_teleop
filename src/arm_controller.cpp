@@ -16,8 +16,18 @@ const Eigen::Vector<double,ArmModel::num_dof_> ArmController::joint_kp_ = Eigen:
 
 const Eigen::Vector<double,ArmModel::num_dof_> ArmController::joint_kd_ = Eigen::Vector<double,ArmModel::num_dof_>(20,20,20,20,20,20);
 
-ArmController::ArmController(std::unique_ptr<ArmModel> model, std::unique_ptr<ArmInterface> interface, const unsigned int control_interval):
-model_(std::move(model)), interface_(std::move(interface)), running_(true), control_thread_(&ArmController::control_loop_, this)
+ArmController::ArmController(
+    std::shared_ptr<ArmModel> left_arm_model,
+    std::shared_ptr<ArmModel> right_arm_model,
+    std::shared_ptr<ArmInterface> interface,
+    RingBuffer<JointState>& left_arm_trajectory_buffer,
+    RingBuffer<JointState>& right_arm_trajectory_buffer,
+    const size_t freq_ctrl):
+    left_arm_model_(left_arm_model), right_arm_model_(right_arm_model),
+    interface_(interface), freq_ctrl_(freq_ctrl),
+    left_arm_target_state_buffer_(left_arm_trajectory_buffer),
+    right_arm_target_state_buffer_(right_arm_trajectory_buffer),
+    control_thread_(&ArmController::threadControl, this), running_(true)
 {
 
 }
@@ -31,279 +41,7 @@ ArmController::~ArmController()
     }
 }
 
-
-void ArmController::setLeftTargetJointPosition(const Eigen::Vector<double,ArmModel::num_dof_>& joint_pos)
-{
-    std::lock_guard(this->left_target_state_mtx_);
-    this->left_target_joint_pos_ = joint_pos;
-}
-
-void ArmController::setLeftTargetJointPosition(double j1, double j2, double j3, double j4, double j5, double j6)
-{
-    std::lock_guard(this->left_target_state_mtx_);
-    this->left_target_joint_pos_(0) = j1;
-    this->left_target_joint_pos_(1) = j2;
-    this->left_target_joint_pos_(2) = j3;
-    this->left_target_joint_pos_(3) = j4;
-    this->left_target_joint_pos_(4) = j5;
-    this->left_target_joint_pos_(5) = j6;
-}
-
-void ArmController::setLeftTargetJointVelocity(const Eigen::Vector<double,ArmModel::num_dof_>& joint_vel)
-{
-    std::lock_guard(this->left_target_state_mtx_);
-    this->left_target_joint_vel_ = joint_vel;
-}
-
-void ArmController::setLeftTargetJointVelocity(double j1, double j2, double j3, double j4, double j5, double j6)
-{
-    std::lock_guard(this->left_target_state_mtx_);
-    this->left_target_joint_vel_(0) = j1;
-    this->left_target_joint_vel_(1) = j2;
-    this->left_target_joint_vel_(2) = j3;
-    this->left_target_joint_vel_(3) = j4;
-    this->left_target_joint_vel_(4) = j5;
-    this->left_target_joint_vel_(5) = j6;
-}
-
-void ArmController::setLeftTargetJointAcceleration(const Eigen::Vector<double,ArmModel::num_dof_>& joint_vel)
-{
-    std::lock_guard(this->left_target_state_mtx_);
-    this->left_target_joint_acc_ = joint_vel;
-}
-
-void ArmController::setLeftTargetJointAcceleration(double j1, double j2, double j3, double j4, double j5, double j6)
-{
-    std::lock_guard(this->left_target_state_mtx_);
-    this->left_target_joint_acc_(0) = j1;
-    this->left_target_joint_acc_(1) = j2;
-    this->left_target_joint_acc_(2) = j3;
-    this->left_target_joint_acc_(3) = j4;
-    this->left_target_joint_acc_(4) = j5;
-    this->left_target_joint_acc_(5) = j6;
-}
-
-void ArmController::setLeftTargetJointTorque(const Eigen::Vector<double,ArmModel::num_dof_>& joint_torq)
-{
-    std::lock_guard(this->left_target_state_mtx_);
-    this->left_target_joint_torq_ = joint_torq;
-}
-
-void ArmController::setLeftTargetJointTorque(double j1, double j2, double j3, double j4, double j5, double j6)
-{
-    std::lock_guard(this->left_target_state_mtx_);
-    this->left_target_joint_torq_(0) = j1;
-    this->left_target_joint_torq_(1) = j2;
-    this->left_target_joint_torq_(2) = j3;
-    this->left_target_joint_torq_(3) = j4;
-    this->left_target_joint_torq_(4) = j5;
-    this->left_target_joint_torq_(5) = j6;
-}
-
-void ArmController::setRightTargetJointPosition(const Eigen::Vector<double,ArmModel::num_dof_>& joint_pos)
-{
-    this->right_target_joint_pos_ = joint_pos;
-}
-
-void ArmController::setRightTargetJointPosition(double j1, double j2, double j3, double j4, double j5, double j6)
-{
-    std::lock_guard(this->right_target_state_mtx_);
-    this->right_target_joint_pos_(0) = j1;
-    this->right_target_joint_pos_(1) = j2;
-    this->right_target_joint_pos_(2) = j3;
-    this->right_target_joint_pos_(3) = j4;
-    this->right_target_joint_pos_(4) = j5;
-    this->right_target_joint_pos_(5) = j6;
-}
-
-void ArmController::setRightTargetJointVelocity(const Eigen::Vector<double,ArmModel::num_dof_>& joint_vel)
-{
-    std::lock_guard(this->right_target_state_mtx_);
-    this->right_target_joint_vel_ = joint_vel;
-}
-
-void ArmController::setRightTargetJointVelocity(double j1, double j2, double j3, double j4, double j5, double j6)
-{
-    std::lock_guard(this->right_target_state_mtx_);
-    this->right_target_joint_vel_(0) = j1;
-    this->right_target_joint_vel_(1) = j2;
-    this->right_target_joint_vel_(2) = j3;
-    this->right_target_joint_vel_(3) = j4;
-    this->right_target_joint_vel_(4) = j5;
-    this->right_target_joint_vel_(5) = j6;
-}
-
-void ArmController::setRightTargetJointAcceleration(const Eigen::Vector<double,ArmModel::num_dof_>& joint_vel)
-{
-    std::lock_guard(this->right_target_state_mtx_);
-    this->right_target_joint_acc_ = joint_vel;
-}
-
-void ArmController::setRightTargetJointAcceleration(double j1, double j2, double j3, double j4, double j5, double j6)
-{
-    std::lock_guard(this->right_target_state_mtx_);
-    this->right_target_joint_acc_(0) = j1;
-    this->right_target_joint_acc_(1) = j2;
-    this->right_target_joint_acc_(2) = j3;
-    this->right_target_joint_acc_(3) = j4;
-    this->right_target_joint_acc_(4) = j5;
-    this->right_target_joint_acc_(5) = j6;
-}
-
-void ArmController::setRightTargetJointTorque(const Eigen::Vector<double,ArmModel::num_dof_>& joint_torq)
-{
-    std::lock_guard(this->right_target_state_mtx_);
-    this->right_target_joint_torq_ = joint_torq;
-}
-
-void ArmController::setRightTargetJointTorque(double j1, double j2, double j3, double j4, double j5, double j6)
-{
-    std::lock_guard(this->right_target_state_mtx_);
-    this->right_target_joint_torq_(0) = j1;
-    this->right_target_joint_torq_(1) = j2;
-    this->right_target_joint_torq_(2) = j3;
-    this->right_target_joint_torq_(3) = j4;
-    this->right_target_joint_torq_(4) = j5;
-    this->right_target_joint_torq_(5) = j6;
-}
-
-void ArmController::updateLeftActualJointPosition(const Eigen::Vector<double,ArmModel::num_dof_>& joint_pos)
-{
-    std::lock_guard(this->left_actual_state_mtx_);
-    this->left_actual_joint_pos_ = joint_pos;
-}
-
-void ArmController::updateLeftActualJointPosition(double j1, double j2, double j3, double j4, double j5, double j6)
-{
-    std::lock_guard(this->left_actual_state_mtx_);
-    this->left_actual_joint_pos_(0) = j1;
-    this->left_actual_joint_pos_(1) = j2;
-    this->left_actual_joint_pos_(2) = j3;
-    this->left_actual_joint_pos_(3) = j4;
-    this->left_actual_joint_pos_(4) = j5;
-    this->left_actual_joint_pos_(5) = j6;
-}
-
-void ArmController::updateLeftActualJointVelocity(const Eigen::Vector<double,ArmModel::num_dof_>& joint_vel)
-{
-    std::lock_guard(this->left_actual_state_mtx_);
-    this->left_actual_joint_vel_ = joint_vel;
-}
-
-void ArmController::updateLeftActualJointVelocity(double j1, double j2, double j3, double j4, double j5, double j6)
-{
-    std::lock_guard(this->left_actual_state_mtx_);
-    this->left_actual_joint_vel_(0) = j1;
-    this->left_actual_joint_vel_(1) = j2;
-    this->left_actual_joint_vel_(2) = j3;
-    this->left_actual_joint_vel_(3) = j4;
-    this->left_actual_joint_vel_(4) = j5;
-    this->left_actual_joint_vel_(5) = j6;
-}
-
-void ArmController::updateLeftActualJointAcceleration(const Eigen::Vector<double,ArmModel::num_dof_>& joint_vel)
-{
-    std::lock_guard(this->left_actual_state_mtx_);
-    this->left_actual_joint_acc_ = joint_vel;
-}
-
-void ArmController::updateLeftActualJointAcceleration(double j1, double j2, double j3, double j4, double j5, double j6)
-{
-    std::lock_guard(this->left_actual_state_mtx_);
-    this->left_actual_joint_acc_(0) = j1;
-    this->left_actual_joint_acc_(1) = j2;
-    this->left_actual_joint_acc_(2) = j3;
-    this->left_actual_joint_acc_(3) = j4;
-    this->left_actual_joint_acc_(4) = j5;
-    this->left_actual_joint_acc_(5) = j6;
-}
-
-void ArmController::updateLeftActualJointTorque(const Eigen::Vector<double,ArmModel::num_dof_>& joint_torq)
-{
-    std::lock_guard(this->left_actual_state_mtx_);
-    this->left_actual_joint_torq_ = joint_torq;
-}
-
-void ArmController::updateLeftActualJointTorque(double j1, double j2, double j3, double j4, double j5, double j6)
-{
-    std::lock_guard(this->left_actual_state_mtx_);
-    this->left_actual_joint_torq_(0) = j1;
-    this->left_actual_joint_torq_(1) = j2;
-    this->left_actual_joint_torq_(2) = j3;
-    this->left_actual_joint_torq_(3) = j4;
-    this->left_actual_joint_torq_(4) = j5;
-    this->left_actual_joint_torq_(5) = j6;
-}
-
-void ArmController::updateRightActualJointPosition(const Eigen::Vector<double,ArmModel::num_dof_>& joint_pos)
-{
-    std::lock_guard(this->right_actual_state_mtx_);
-    this->right_actual_joint_pos_ = joint_pos;
-}
-
-void ArmController::updateRightActualJointPosition(double j1, double j2, double j3, double j4, double j5, double j6)
-{
-    std::lock_guard(this->right_actual_state_mtx_);
-    this->right_actual_joint_pos_(0) = j1;
-    this->right_actual_joint_pos_(1) = j2;
-    this->right_actual_joint_pos_(2) = j3;
-    this->right_actual_joint_pos_(3) = j4;
-    this->right_actual_joint_pos_(4) = j5;
-    this->right_actual_joint_pos_(5) = j6;
-}
-
-void ArmController::updateRightActualJointVelocity(const Eigen::Vector<double,ArmModel::num_dof_>& joint_vel)
-{
-    std::lock_guard(this->right_actual_state_mtx_);
-    this->right_actual_joint_vel_ = joint_vel;
-}
-
-void ArmController::updateRightActualJointVelocity(double j1, double j2, double j3, double j4, double j5, double j6)
-{
-    std::lock_guard(this->right_actual_state_mtx_);
-    this->right_actual_joint_vel_(0) = j1;
-    this->right_actual_joint_vel_(1) = j2;
-    this->right_actual_joint_vel_(2) = j3;
-    this->right_actual_joint_vel_(3) = j4;
-    this->right_actual_joint_vel_(4) = j5;
-    this->right_actual_joint_vel_(5) = j6;
-}
-
-void ArmController::updateRightActualJointAcceleration(const Eigen::Vector<double,ArmModel::num_dof_>& joint_vel)
-{
-    std::lock_guard(this->right_actual_state_mtx_);
-    this->right_actual_joint_acc_ = joint_vel;
-}
-
-void ArmController::updateRightActualJointAcceleration(double j1, double j2, double j3, double j4, double j5, double j6)
-{
-    std::lock_guard(this->right_actual_state_mtx_);
-    this->right_actual_joint_acc_(0) = j1;
-    this->right_actual_joint_acc_(1) = j2;
-    this->right_actual_joint_acc_(2) = j3;
-    this->right_actual_joint_acc_(3) = j4;
-    this->right_actual_joint_acc_(4) = j5;
-    this->right_actual_joint_acc_(5) = j6;
-}
-
-void ArmController::updateRightActualJointTorque(const Eigen::Vector<double,ArmModel::num_dof_>& joint_torq)
-{
-    std::lock_guard(this->right_actual_state_mtx_);
-    this->right_actual_joint_torq_ = joint_torq;
-}
-
-void ArmController::updateRightActualJointTorque(double j1, double j2, double j3, double j4, double j5, double j6)
-{
-    std::lock_guard(this->right_actual_state_mtx_);
-    this->right_actual_joint_torq_(0) = j1;
-    this->right_actual_joint_torq_(1) = j2;
-    this->right_actual_joint_torq_(2) = j3;
-    this->right_actual_joint_torq_(3) = j4;
-    this->right_actual_joint_torq_(4) = j5;
-    this->right_actual_joint_torq_(5) = j6;
-}
-
-void ArmController::control_loop_()
+void ArmController::threadControl()
 {
     std::array<Eigen::Matrix4d,ArmModel::num_link_> link_transform;
     std::array<Eigen::Matrix4d,ArmModel::num_link_> link_com_transform;
@@ -317,6 +55,8 @@ void ArmController::control_loop_()
     Eigen::Matrix<double,ArmModel::num_dof_,ArmModel::num_dof_> centrifugal_coriolis_matrix;
     Eigen::Vector<double,ArmModel::num_dof_> gravity_compensate;
     Eigen::Vector<double,ArmModel::num_dof_> feedforward_torque;
+    JointState target_joint_state;
+    JointState actual_joint_state;
 
     auto increase_time_spec = [](struct timespec* time, const struct timespec* increasement)
     {
@@ -331,7 +71,7 @@ void ArmController::control_loop_()
     };
 
     struct timespec wakeup_time = {0,0};
-    static const struct timespec cycletime = {0, 5000000};
+    static const struct timespec cycletime = {0, 1e9/this->freq_ctrl_};
     clock_gettime(CLOCK_MONOTONIC, &wakeup_time);
 
     while(this->running_)
@@ -339,32 +79,40 @@ void ArmController::control_loop_()
         increase_time_spec(&wakeup_time, &cycletime);
         clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, &wakeup_time, NULL);
 
-        std::lock_guard(this->left_actual_state_mtx_);
-        this->model_->getTransform(link_transform, link_com_transform, this->left_actual_joint_pos_);
-        this->model_->getLinkVelocity(link_lin_vel, link_ang_vel, link_com_lin_vel, link_com_ang_vel, link_transform, link_com_transform, this->left_actual_joint_vel_);
-        this->model_->getLinkComSpaceJacobian(link_com_jacobian, link_transform, link_com_transform);
-        this->model_->getLinkComSpaceJacobianDot(link_com_jacobian_dot, link_transform, link_com_transform, link_lin_vel, link_ang_vel, link_com_lin_vel);
-        generalized_mass_matrix = this->model_->getJointSpaceMassMatrix(link_com_transform,link_com_jacobian);
-        centrifugal_coriolis_matrix = this->model_->getJointSpaceCoriolisMatrix(link_com_transform,link_com_jacobian,link_com_jacobian_dot, this->left_actual_joint_vel_);
-        gravity_compensate = this->model_->getJointSpaceGravityCompensate(link_com_jacobian);
+        actual_joint_state.joint_pos = this->interface_->getLeftJointPosition();
+        actual_joint_state.joint_vel = this->interface_->getLeftJointVelocity();
 
-        feedforward_torque = generalized_mass_matrix * this->left_actual_joint_acc_ + centrifugal_coriolis_matrix * this->left_actual_joint_vel_ + gravity_compensate;
+        this->left_arm_model_->getTransform(link_transform, link_com_transform, actual_joint_state.joint_pos);
+        this->left_arm_model_->getLinkVelocity(link_lin_vel, link_ang_vel, link_com_lin_vel, link_com_ang_vel, link_transform, link_com_transform, actual_joint_state.joint_vel);
+        this->left_arm_model_->getLinkComSpaceJacobian(link_com_jacobian, link_transform, link_com_transform);
+        this->left_arm_model_->getLinkComSpaceJacobianDot(link_com_jacobian_dot, link_transform, link_com_transform, link_lin_vel, link_ang_vel, link_com_lin_vel);
+        generalized_mass_matrix = this->left_arm_model_->getJointSpaceMassMatrix(link_com_transform,link_com_jacobian);
+        centrifugal_coriolis_matrix = this->left_arm_model_->getJointSpaceCoriolisMatrix(link_com_transform,link_com_jacobian,link_com_jacobian_dot, actual_joint_state.joint_vel);
+        gravity_compensate = this->left_arm_model_->getJointSpaceGravityCompensate(link_com_jacobian);
 
-        std::lock_guard(this->left_target_state_mtx_);
-        this->interface_->setLeftJointControl(this->left_target_joint_pos_, this->left_target_joint_vel_, feedforward_torque);
+        feedforward_torque = generalized_mass_matrix * actual_joint_state.joint_acc + centrifugal_coriolis_matrix * actual_joint_state.joint_vel + gravity_compensate;
 
-        std::lock_guard(this->right_actual_state_mtx_);
-        this->model_->getTransform(link_transform, link_com_transform, this->right_actual_joint_pos_);
-        this->model_->getLinkVelocity(link_lin_vel, link_ang_vel, link_com_lin_vel, link_com_ang_vel, link_transform, link_com_transform, this->right_actual_joint_vel_);
-        this->model_->getLinkComSpaceJacobian(link_com_jacobian, link_transform, link_com_transform);
-        this->model_->getLinkComSpaceJacobianDot(link_com_jacobian_dot, link_transform, link_com_transform, link_lin_vel, link_ang_vel, link_com_lin_vel);
-        generalized_mass_matrix = this->model_->getJointSpaceMassMatrix(link_com_transform,link_com_jacobian);
-        centrifugal_coriolis_matrix = this->model_->getJointSpaceCoriolisMatrix(link_com_transform,link_com_jacobian,link_com_jacobian_dot, this->right_actual_joint_vel_);
-        gravity_compensate = this->model_->getJointSpaceGravityCompensate(link_com_jacobian);
+        if ( this->left_arm_target_state_buffer_.try_pop(target_joint_state) )
+        {
+            this->interface_->setLeftJointControl(target_joint_state.joint_pos, target_joint_state.joint_vel, feedforward_torque);
+        }
 
-        feedforward_torque = generalized_mass_matrix * this->right_actual_joint_acc_ + centrifugal_coriolis_matrix * this->right_actual_joint_vel_ + gravity_compensate;
+        actual_joint_state.joint_pos = this->interface_->getRightJointPosition();
+        actual_joint_state.joint_vel = this->interface_->getRightJointVelocity();
 
-        std::lock_guard(this->right_target_state_mtx_);
-        this->interface_->setRightJointControl(this->right_target_joint_pos_, this->right_target_joint_vel_, feedforward_torque);
+        this->right_arm_model_->getTransform(link_transform, link_com_transform, actual_joint_state.joint_pos);
+        this->right_arm_model_->getLinkVelocity(link_lin_vel, link_ang_vel, link_com_lin_vel, link_com_ang_vel, link_transform, link_com_transform, actual_joint_state.joint_vel);
+        this->right_arm_model_->getLinkComSpaceJacobian(link_com_jacobian, link_transform, link_com_transform);
+        this->right_arm_model_->getLinkComSpaceJacobianDot(link_com_jacobian_dot, link_transform, link_com_transform, link_lin_vel, link_ang_vel, link_com_lin_vel);
+        generalized_mass_matrix = this->right_arm_model_->getJointSpaceMassMatrix(link_com_transform,link_com_jacobian);
+        centrifugal_coriolis_matrix = this->right_arm_model_->getJointSpaceCoriolisMatrix(link_com_transform,link_com_jacobian,link_com_jacobian_dot, actual_joint_state.joint_vel);
+        gravity_compensate = this->right_arm_model_->getJointSpaceGravityCompensate(link_com_jacobian);
+
+        feedforward_torque = generalized_mass_matrix * actual_joint_state.joint_acc + centrifugal_coriolis_matrix * actual_joint_state.joint_vel + gravity_compensate;
+
+        if ( this->right_arm_target_state_buffer_.try_pop(target_joint_state) )
+        {
+            this->interface_->setRightJointControl(target_joint_state.joint_pos, target_joint_state.joint_vel, feedforward_torque);
+        }
     }
 }

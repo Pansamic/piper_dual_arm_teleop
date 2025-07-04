@@ -10,49 +10,35 @@
  */
 #include <arm_planner.h>
 
-ArmPlanner::ArmPlanner(size_t freq_plan, size_t freq_ctrl):
+ArmPlanner::ArmPlanner(
+    RingBuffer<JointState>& left_arm_target_waypoint_buffer,
+    RingBuffer<JointState>& right_arm_target_waypoint_buffer,
+    RingBuffer<JointState>& left_arm_trajectory_buffer,
+    RingBuffer<JointState>& right_arm_trajectory_buffer,
+    size_t freq_plan, size_t freq_ctrl):
     dt_plan_(1.0/static_cast<double>(freq_plan)), dt_ctrl_(1.0/static_cast<double>(freq_ctrl)),
     traj_len_(freq_ctrl/freq_plan),
-    left_arm_trajectory_buffer_((freq_ctrl/freq_plan)*this->traj_buf_len_),
-    right_arm_trajectory_buffer_((freq_ctrl/freq_plan)*this->traj_buf_len_),
-    left_arm_last_end_waypoint_(Eigen::Vector<double, ArmModel::num_dof_>::Zero()),
-    right_arm_last_end_waypoint_(Eigen::Vector<double, ArmModel::num_dof_>::Zero()),
+    left_arm_trajectory_buffer_(left_arm_trajectory_buffer),
+    right_arm_trajectory_buffer_(right_arm_trajectory_buffer),
+    left_arm_target_joint_state_buffer_(left_arm_target_waypoint_buffer),
+    right_arm_target_joint_state_buffer_(right_arm_target_waypoint_buffer),
+    left_arm_last_target_joint_state_(Eigen::Vector<double, ArmModel::num_dof_>::Zero()),
+    right_arm_last_target_joint_state_(Eigen::Vector<double, ArmModel::num_dof_>::Zero()),
     plan_thread_(std::thread(&ArmPlanner::threadPlan, this)), running_(true)
 {
 
 }
 
-void ArmPlanner::setLeftArmTargetWayPoint(const WayPoint& waypoint)
+ArmPlanner::~ArmPlanner()
 {
-    this->left_arm_target_waypoint_ = waypoint;
-}
-
-void ArmPlanner::setRightArmTargetWayPoint(const WayPoint& waypoint)
-{
-    this->right_arm_target_waypoint_ = waypoint;
-}
-
-void ArmPlanner::getLeftArmWayPoint(WayPoint& waypoint)
-{
-
-    if ( this->left_arm_trajectory_buffer_.empty() )
+    this->running_ = false;
+    if ( this->plan_thread_.joinable() )
     {
-        throw std::underflow_error("trajectory empty");
+        plan_thread_.join();  // Ensure thread finishes before destruction
     }
-    this->left_arm_trajectory_buffer_.pop(waypoint);
 }
 
-void ArmPlanner::getRightArmWayPoint(WayPoint& waypoint)
-{
-
-    if ( this->right_arm_trajectory_buffer_.empty() )
-    {
-        throw std::underflow_error("trajectory empty");
-    }
-    this->right_arm_trajectory_buffer_.pop(waypoint);
-}
-
-void ArmPlanner::interpolateLinear(RingBuffer<WayPoint>& traj_buf, const std::array<WayPoint, plan_waypoint_amount_>& waypoints)
+void ArmPlanner::interpolateLinear(RingBuffer<JointState>& traj_buf, const std::array<JointState, plan_waypoint_amount_>& waypoints)
 {
     constexpr size_t dof = ArmModel::num_dof_;
     const size_t num_segments = plan_waypoint_amount_ - 1;
@@ -72,16 +58,16 @@ void ArmPlanner::interpolateLinear(RingBuffer<WayPoint>& traj_buf, const std::ar
             Eigen::VectorXd q = (1.0 - alpha) * q0 + alpha * q1;
             Eigen::VectorXd v = (q1 - q0) / T;
 
-            WayPoint wp;
-            wp.joint_pos = q;
-            wp.joint_vel = v;
+            JointState joint_state;
+            joint_state.joint_pos = q;
+            joint_state.joint_vel = v;
 
-            traj_buf.push(wp);
+            traj_buf.push(joint_state);
         }
     }
 }
 
-void ArmPlanner::interpolateBSpline(RingBuffer<WayPoint>& traj_buf, const std::array<WayPoint, plan_waypoint_amount_>& waypoints)
+void ArmPlanner::interpolateBSpline(RingBuffer<JointState>& traj_buf, const std::array<JointState, plan_waypoint_amount_>& waypoints)
 {
     constexpr size_t dof = ArmModel::num_dof_;
     const int degree = 3;  // Cubic B-spline
@@ -141,27 +127,27 @@ void ArmPlanner::interpolateBSpline(RingBuffer<WayPoint>& traj_buf, const std::a
     {
         double tau = t_start + (t_end - t_start) * (double(s) / (total_samples - 1));
 
-        WayPoint wp;
-        wp.joint_pos.setZero();
-        wp.joint_vel.setZero();
+        JointState joint_state;
+        joint_state.joint_pos.setZero();
+        joint_state.joint_vel.setZero();
 
         for (int i = 0; i <= n; ++i)
         {
             double Ni = CoxDeBoor(i, degree, tau);
             double dNi_dtau = CoxDeBoorDerivative(i, degree, tau);
 
-            wp.joint_pos += Ni * waypoints[i].joint_pos;
-            wp.joint_vel += dNi_dtau * waypoints[i].joint_pos;
+            joint_state.joint_pos += Ni * waypoints[i].joint_pos;
+            joint_state.joint_vel += dNi_dtau * waypoints[i].joint_pos;
         }
 
         // Reparameterize velocity to real time (t ∈ [0, dt_plan_])
-        wp.joint_vel *= 1.0 / dt_plan_;
+        joint_state.joint_vel *= 1.0 / dt_plan_;
 
-        traj_buf.push(wp);
+        traj_buf.push(joint_state);
     }
 }
 
-void ArmPlanner::interpolateQuinticPolynomial(RingBuffer<WayPoint>& traj_buf, const std::array<WayPoint, plan_waypoint_amount_>& waypoints)
+void ArmPlanner::interpolateQuinticPolynomial(RingBuffer<JointState>& traj_buf, const std::array<JointState, plan_waypoint_amount_>& waypoints)
 {
     constexpr size_t dof = ArmModel::num_dof_;
     const size_t num_segments = plan_waypoint_amount_ - 1;
@@ -214,7 +200,7 @@ void ArmPlanner::interpolateQuinticPolynomial(RingBuffer<WayPoint>& traj_buf, co
                 v[j] = a[1] + 2*a[2]*t + 3*a[3]*t*t + 4*a[4]*t*t*t + 5*a[5]*t*t*t*t;
             }
 
-            WayPoint wp;
+            JointState wp;
             wp.joint_pos = q;
             wp.joint_vel = v;
 
@@ -224,12 +210,12 @@ void ArmPlanner::interpolateQuinticPolynomial(RingBuffer<WayPoint>& traj_buf, co
 }
 
 void ArmPlanner::planDualArmLinear(
-    std::array<WayPoint, plan_waypoint_amount_>& left_arm_plan_waypoints,
-    std::array<WayPoint, plan_waypoint_amount_>& right_arm_plan_waypoints,
-    const WayPoint& left_arm_begin,
-    const WayPoint& left_arm_end,
-    const WayPoint& right_arm_begin,
-    const WayPoint& right_arm_end)
+    std::array<JointState, plan_waypoint_amount_>& left_arm_plan_waypoints,
+    std::array<JointState, plan_waypoint_amount_>& right_arm_plan_waypoints,
+    const JointState& left_arm_begin,
+    const JointState& left_arm_end,
+    const JointState& right_arm_begin,
+    const JointState& right_arm_end)
 {
     // fill internal_waypoints_[0..N-1]
     for (size_t i = 0; i < this->plan_waypoint_amount_; ++i)
@@ -244,21 +230,51 @@ void ArmPlanner::planDualArmLinear(
         right_arm_plan_waypoints[i].joint_vel.setZero();
 
         /* uncomment the following line if joint acceleration exists in waypoint struct */
-        // left_arm_plan_waypoints[i].joint_acc.setZero();
-        // right_arm_plan_waypoints[i].joint_acc.setZero();
+        left_arm_plan_waypoints[i].joint_acc.setZero();
+        right_arm_plan_waypoints[i].joint_acc.setZero();
     }
 }
 
 void ArmPlanner::threadPlan()
 {
-    std::array<WayPoint, plan_waypoint_amount_> left_arm_plan_waypoints;
-    std::array<WayPoint, plan_waypoint_amount_> right_arm_plan_waypoints;
+    auto increase_time_spec = [](struct timespec* time, const struct timespec* increasement)
+    {
+        time->tv_sec += increasement->tv_sec;
+        time->tv_nsec += increasement->tv_nsec;
+
+        if (time->tv_nsec >= 1000000000)
+        {
+            time->tv_sec++;
+            time->tv_nsec -= 1000000000;
+        }
+    };
+
+    std::array<JointState, plan_waypoint_amount_> left_arm_plan_waypoints;
+    std::array<JointState, plan_waypoint_amount_> right_arm_plan_waypoints;
+
+    JointState left_arm_target_waypoint;
+    JointState right_arm_target_waypoint;
+
+    struct timespec wakeup_time = {0,0};
+    static struct timespec cycletime = {0, static_cast<long>(this->dt_plan_ * 1e9)};
+    clock_gettime(CLOCK_MONOTONIC, &wakeup_time);
+
     while ( this->running_ )
     {
+        increase_time_spec(&wakeup_time, &cycletime);
+        clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, &wakeup_time, NULL);
+
+        /* Use non-blocking way `try_pop()` to avoid waiting.
+         * If fails to pop, the target will remain the same. */
+        this->left_arm_target_joint_state_buffer_.try_pop(left_arm_target_waypoint);
+        this->right_arm_target_joint_state_buffer_.try_pop(right_arm_target_waypoint);
+
+        /* Use linear plan to generate internal waypoints */
         this->planDualArmLinear(
             left_arm_plan_waypoints, right_arm_plan_waypoints,
-            this->left_arm_last_end_waypoint_, this->left_arm_target_waypoint_,
-            this->right_arm_last_end_waypoint_, this->right_arm_target_waypoint_);
+            this->left_arm_last_target_joint_state_, left_arm_target_waypoint,
+            this->right_arm_last_target_joint_state_, right_arm_target_waypoint);
+
         this->interpolateQuinticPolynomial(this->left_arm_trajectory_buffer_, left_arm_plan_waypoints);
         this->interpolateQuinticPolynomial(this->left_arm_trajectory_buffer_, right_arm_plan_waypoints);
     }
