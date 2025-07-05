@@ -93,6 +93,14 @@ private:
 
     void scaleLeftHandPose(Eigen::Matrix4d& pose);
     void scaleRightHandPose(Eigen::Matrix4d& pose);
+
+    /**
+     * @brief Check joint position jitter, or 
+     * 
+     * @param joint_pos 
+     * @return true 
+     * @return false 
+     */
     bool checkInvalidTargetConfiguration(const Eigen::Vector<double,ArmModel::num_dof_>& joint_pos);
 };
 

@@ -38,28 +38,18 @@ TeleopTaskRunner::TeleopTaskRunner(std::shared_ptr<ArmInterface> interface, size
     left_hand_target_orientation_(Eigen::Quaterniond::Identity()),
     left_hand_target_pose_(Eigen::Matrix4d::Identity()),
     left_hand_actual_orientation_(Eigen::Matrix4d::Identity()),
-    left_arm_target_joint_pos_(Eigen::Vector<double, ArmModel::num_dof_>::Zero()),
-    left_arm_target_joint_vel_(Eigen::Vector<double, ArmModel::num_dof_>::Zero()),
-    left_arm_target_joint_torque_(Eigen::Vector<double, ArmModel::num_dof_>::Zero()),
-    left_arm_actual_joint_pos_(Eigen::Vector<double, ArmModel::num_dof_>::Zero()),
-    left_arm_actual_joint_vel_(Eigen::Vector<double, ArmModel::num_dof_>::Zero()),
-    left_arm_actual_joint_torque_(Eigen::Vector<double, ArmModel::num_dof_>::Zero()),
     left_gripper_control_(0),
     right_hand_target_pos_(Eigen::Vector3d::Zero()),
     right_hand_target_orientation_(Eigen::Quaterniond::Identity()),
     right_hand_target_pose_(Eigen::Matrix4d::Identity()),
     right_hand_actual_orientation_(Eigen::Quaterniond::Identity()),
-    right_arm_target_joint_pos_(Eigen::Vector<double, ArmModel::num_dof_>::Zero()),
-    right_arm_target_joint_vel_(Eigen::Vector<double, ArmModel::num_dof_>::Zero()),
-    right_arm_target_joint_torque_(Eigen::Vector<double, ArmModel::num_dof_>::Zero()),
-    right_arm_actual_joint_pos_(Eigen::Vector<double, ArmModel::num_dof_>::Zero()),
-    right_arm_actual_joint_vel_(Eigen::Vector<double, ArmModel::num_dof_>::Zero()),
-    right_arm_actual_joint_torque_(Eigen::Vector<double, ArmModel::num_dof_>::Zero()),
     right_gripper_control_(0),
     left_arm_trajectory_buffer_(freq_ctrl/freq_plan*this->traj_buf_size_),
     right_arm_trajectory_buffer_(freq_ctrl/freq_plan*this->traj_buf_size_),
     left_arm_target_joint_state_buffer_(32),
     right_arm_target_joint_state_buffer_(32),
+    left_arm_target_joint_pos_history_(32),
+    right_arm_target_joint_pos_history_(32),
     channel_(this->io_context_, "192.168.1.105", 54321, "192.168.1.5", 12345),
     send_mq_(RingBuffer<whole_body_msg>{10}),
     recv_mq_(RingBuffer<whole_body_msg>{10})
@@ -103,6 +93,7 @@ void TeleopTaskRunner::run()
     {
         if ( !this->recv_mq_.dequeue(msg) )
         {
+            /* Continue if message not received. */
             continue;
         }
         /* Check for system control enable signal */
@@ -133,6 +124,9 @@ void TeleopTaskRunner::run()
             Eigen::Vector<double,ArmModel::num_dof_> joint_pos = this->left_arm_model_->getDampedLeastSquareInverseKinematics(
                 0.1, Eigen::Vector<double,6>(0.05,0.05,0.05,0.1,0.1,0.1), 200, this->left_hand_target_pose_, this->interface_->getLeftJointPosition());
             
+            this->checkInvalidTargetConfiguration(joint_pos);
+
+            this->left_arm_target_joint_pos_history_.push(joint_pos);
         }
         /* Check for right arm control enable signal */
         if ( msg.mask&(1<<12) )

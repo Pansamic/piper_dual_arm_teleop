@@ -12,3 +12,9 @@ Dual AgileX Piper 6-axis manipulator.
 * inverse kinematics approximation.
 * abnormal motion behaviour filter.
 * joint PD control with inverse dynamics feedforward torque.
+* mujoco simulation and real hardware control.
+
+## todo
+
+- [ ] Refactor arm model as rigid body tree.
+- [ ] sd
