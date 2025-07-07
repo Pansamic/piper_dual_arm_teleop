@@ -8,25 +8,32 @@
  * @copyright Copyright (c) 2025
  * 
  */
+#include <log.hpp>
 #include <arm_planner.h>
 
 ArmPlanner::ArmPlanner(
-    RingBuffer<JointState>& left_arm_target_waypoint_buffer,
-    RingBuffer<JointState>& right_arm_target_waypoint_buffer,
-    RingBuffer<JointState>& left_arm_trajectory_buffer,
-    RingBuffer<JointState>& right_arm_trajectory_buffer,
+    TrajectoryBuffer<plan_waypoint_amount_>& left_arm_trajectory_buffer,
+    TrajectoryBuffer<plan_waypoint_amount_>& right_arm_trajectory_buffer,
     size_t freq_plan, size_t freq_ctrl):
     dt_plan_(1.0/static_cast<double>(freq_plan)), dt_ctrl_(1.0/static_cast<double>(freq_ctrl)),
     traj_len_(freq_ctrl/freq_plan),
     left_arm_trajectory_buffer_(left_arm_trajectory_buffer),
     right_arm_trajectory_buffer_(right_arm_trajectory_buffer),
-    left_arm_target_joint_state_buffer_(left_arm_target_waypoint_buffer),
-    right_arm_target_joint_state_buffer_(right_arm_target_waypoint_buffer),
-    left_arm_last_target_joint_state_(Eigen::Vector<double, ArmModel::num_dof_>::Zero()),
-    right_arm_last_target_joint_state_(Eigen::Vector<double, ArmModel::num_dof_>::Zero()),
     plan_thread_(std::thread(&ArmPlanner::threadPlan, this)), running_(true)
 {
 
+}
+
+void ArmPlanner::setLeftArmTargetJointState(const JointState& joint_state)
+{
+    std::lock_guard<std::mutex> lock(this->left_arm_target_joint_state_mtx_);
+    this->left_arm_target_joint_state_ = joint_state;
+}
+
+void ArmPlanner::setRightArmTargetJointState(const JointState& joint_state)
+{
+    std::lock_guard<std::mutex> lock(this->right_arm_target_joint_state_mtx_);
+    this->right_arm_target_joint_state_ = joint_state;
 }
 
 ArmPlanner::~ArmPlanner()
@@ -210,28 +217,59 @@ ArmPlanner::~ArmPlanner()
 // }
 
 void ArmPlanner::planDualArmLinear(
-    std::array<JointState, plan_waypoint_amount_>& left_arm_plan_waypoints,
-    std::array<JointState, plan_waypoint_amount_>& right_arm_plan_waypoints,
     const JointState& left_arm_begin,
     const JointState& left_arm_end,
     const JointState& right_arm_begin,
     const JointState& right_arm_end)
 {
+    /* Convert the interval of plan loop to std::chrono duration type at the first run. */
+    // static std::chrono::steady_clock::duration plan_duration(static_cast<int64_t>(this->dt_plan_*1e9));
+    static std::chrono::steady_clock::duration plan_duration = 
+        std::chrono::duration_cast<std::chrono::steady_clock::duration>(std::chrono::duration<double>(this->dt_plan_));
+
+    /* Create a trajectory waypoint */
+    TrajectoryBuffer<this->plan_waypoint_amount_>::TrajectoryPoint waypoint;
+
+    /* zero velocities/accelerations/torque here, to be filled by interpolation */
+    waypoint.state.joint_vel.setZero();
+    waypoint.state.joint_acc.setZero();
+    waypoint.state.joint_torq.setZero();
+
+    waypoint.timestamp = std::chrono::steady_clock::now();
+
     // fill internal_waypoints_[0..N-1]
     for (size_t i = 0; i < this->plan_waypoint_amount_; ++i)
     {
         double alpha = double(i+1) / (this->plan_waypoint_amount_ + 1);
 
-        left_arm_plan_waypoints[i].joint_pos = left_arm_begin.joint_pos + alpha * (left_arm_end.joint_pos - left_arm_begin.joint_pos);
-        right_arm_plan_waypoints[i].joint_pos = right_arm_begin.joint_pos + alpha * (right_arm_end.joint_pos - right_arm_begin.joint_pos);
-        
-        /* zero velocities/accelerations here, to be filled by interpolation */
-        left_arm_plan_waypoints[i].joint_vel.setZero();
-        right_arm_plan_waypoints[i].joint_vel.setZero();
+        // waypoint.timestamp += std::chrono::duration_cast<std::chrono::steady_clock::duration>()
+        waypoint.timestamp += plan_duration;
 
-        /* uncomment the following line if joint acceleration exists in waypoint struct */
-        left_arm_plan_waypoints[i].joint_acc.setZero();
-        right_arm_plan_waypoints[i].joint_acc.setZero();
+        /* Compute left arm waypoint. */
+        waypoint.state.joint_pos = left_arm_begin.joint_pos + alpha * (left_arm_end.joint_pos - left_arm_begin.joint_pos);
+
+        /* Push waypoint to left arm trajectory buffer. */
+        try
+        {
+            this->left_arm_trajectory_buffer_.push(waypoint);
+        }
+        catch(const std::exception& e)
+        {
+            LOG_WARN(e.what());
+        }
+
+        /* Compute right arm waypoint. */
+        waypoint.state.joint_pos = right_arm_begin.joint_pos + alpha * (right_arm_end.joint_pos - right_arm_begin.joint_pos);
+
+        /* Push waypoint to right arm trajectory buffer. */
+        try
+        {
+            this->right_arm_trajectory_buffer_.push(waypoint);
+        }
+        catch(const std::exception& e)
+        {
+            LOG_WARN(e.what());
+        }
     }
 }
 
@@ -249,9 +287,6 @@ void ArmPlanner::threadPlan()
         }
     };
 
-    JointState left_arm_target_joint_state;
-    JointState right_arm_target_joint_state;
-
     struct timespec wakeup_time = {0,0};
     static struct timespec cycletime = {0, static_cast<long>(this->dt_plan_ * 1e9)};
     clock_gettime(CLOCK_MONOTONIC, &wakeup_time);
@@ -261,16 +296,16 @@ void ArmPlanner::threadPlan()
         increase_time_spec(&wakeup_time, &cycletime);
         clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, &wakeup_time, NULL);
 
-        /* Use non-blocking way `try_pop()` to avoid waiting.
-         * If fails to pop, the target will remain the same. */
-        this->left_arm_target_joint_state_buffer_.try_pop(left_arm_target_joint_state);
-        this->right_arm_target_joint_state_buffer_.try_pop(right_arm_target_joint_state);
+        std::lock_guard<std::mutex> left_arm_lock(this->left_arm_target_joint_state_mtx_);
+        std::lock_guard<std::mutex> right_arm_lock(this->right_arm_target_joint_state_mtx_);
 
         /* Use linear plan to generate internal waypoints */
         this->planDualArmLinear(
-            left_arm_plan_waypoints, right_arm_plan_waypoints,
-            this->left_arm_last_target_joint_state_, left_arm_target_joint_state,
-            this->right_arm_last_target_joint_state_, right_arm_target_joint_state);
-        
+            this->left_arm_last_target_joint_state_, this->left_arm_target_joint_state_,
+            this->right_arm_last_target_joint_state_, this->right_arm_target_joint_state_);
+
+        /* Update history joint state */
+        this->left_arm_last_target_joint_state_ = this->left_arm_target_joint_state_;
+        this->right_arm_last_target_joint_state_ = this->right_arm_target_joint_state_;
     }
 }

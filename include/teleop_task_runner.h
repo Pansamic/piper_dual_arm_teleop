@@ -78,8 +78,8 @@ private:
      * for planner. This buffer is assigned to planner object
      * when planner is created and planner can access this buffer
      * to get target joint state from task runner. */
-    RingBuffer<JointState> left_arm_target_joint_state_buffer_;
-    RingBuffer<JointState> right_arm_target_joint_state_buffer_;
+    // RingBuffer<JointState> left_arm_target_joint_state_buffer_;
+    // RingBuffer<JointState> right_arm_target_joint_state_buffer_;
 
     /* Trajectory is a sequence of joint states. This buffer is assigned to
      * planner object and controller object and they share this buffer 

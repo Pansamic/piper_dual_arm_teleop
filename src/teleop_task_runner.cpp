@@ -124,9 +124,13 @@ void TeleopTaskRunner::run()
             Eigen::Vector<double,ArmModel::num_dof_> joint_pos = this->left_arm_model_->getDampedLeastSquareInverseKinematics(
                 0.1, Eigen::Vector<double,6>(0.05,0.05,0.05,0.1,0.1,0.1), 200, this->left_hand_target_pose_, this->interface_->getLeftJointPosition());
             
-            this->checkInvalidJointPosition(joint_pos);
+            if ( this->checkInvalidJointPosition(joint_pos) )
+            {
+                this->left_arm_target_joint_pos_history_.push(joint_pos);
+            }
 
-            this->left_arm_target_joint_pos_history_.push(joint_pos);
+            this->left_arm_target_joint_state_buffer_.push()
+            
         }
         /* Check for right arm control enable signal */
         if ( msg.mask&(1<<12) )
@@ -151,6 +155,10 @@ void TeleopTaskRunner::run()
 void TeleopTaskRunner::scaleLeftHandPose(Eigen::Matrix4d& pose)
 {
     static const Eigen::Matrix3d left_hand_orientation_offset_rotm = this->left_hand_orientation_offset_.toRotationMatrix();
+    /* Scale the end effector position. */
+    pose.block<3,1>(0,3) *= 1.3;
+    /* Add position offset because VR remote controller position is based on headset,
+     * so the base position should be converted to the arm model base. */
     pose.block<3,1>(0,3) += this->head_position_;
     pose.block<3,3>(0,0) *= left_hand_orientation_offset_rotm;
 }
@@ -158,6 +166,10 @@ void TeleopTaskRunner::scaleLeftHandPose(Eigen::Matrix4d& pose)
 void TeleopTaskRunner::scaleRightHandPose(Eigen::Matrix4d& pose)
 {
     static const Eigen::Matrix3d right_hand_orientation_offset_rotm = this->right_hand_orientation_offset_.toRotationMatrix();
+    /* Scale the end effector position. */
+    pose.block<3,1>(0,3) *= 1.3;
+    /* Add position offset because VR remote controller position is based on headset,
+     * so the base position should be converted to the arm model base. */
     pose.block<3,1>(0,3) += this->head_position_;
     pose.block<3,3>(0,0) *= right_hand_orientation_offset_rotm;
 }
