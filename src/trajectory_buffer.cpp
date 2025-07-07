@@ -15,7 +15,8 @@
 
 template <std::size_t Capacity>
 TrajectoryBuffer<Capacity>::TrajectoryBuffer():
-    size_(0), head_(0), quintic_polynomial_coefficients_ready_(false)
+    size_(0), head_(0), quintic_polynomial_coefficients_ready_(false),
+    write_buffer_(&this->buffer_a_), read_buffer_(&this->buffer_b_)
 {
 
 }
@@ -24,14 +25,42 @@ template <std::size_t Capacity>
 bool TrajectoryBuffer<Capacity>::push(const TrajectoryPoint &point)
 {
     std::lock_guard<std::mutex> lock(mutex_);
-    this->buffer_[head_] = point;
-    this->head_ = (head_ + 1) % Capacity;
+    if ( this->head_ >= Capacity )
+    {
+        return false;
+    }
+    this->buffer_[this->head_] = point;
+    this->head_ = (this->head_ + 1) % Capacity;
     if (this->size_ < Capacity)
     {
         this->size_++;
     }
-    this->quintic_polynomial_coefficients_ready_ = false;
+    this->quintic_polynomial_coefficients_ready_.store(false, std::memory_order_release);
     return true;
+}
+
+template <std::size_t Capacity>
+void TrajectoryBuffer<Capacity>::clear()
+{
+    this->write_buffer_ = &this->buffer_a_;
+    this->read_buffer_ = &this->buffer_b_;
+    this->head_ = 0;
+    this->size_ = 0;
+}
+
+template <std::size_t Capacity>
+std::size_t TrajectoryBuffer<Capacity>::size() const
+{
+    return this->size_;
+}
+
+template <std::size_t Capacity>
+void TrajectoryBuffer<Capacity>::commit()
+{
+    std::lock_guard<std::mutex> lock(this->mutex_);
+    std::swap(this->write_buffer_, this->read_buffer_);
+    this->head_ = 0;
+    this->size_ = 0;
 }
 
 template <std::size_t Capacity>
@@ -103,7 +132,7 @@ void TrajectoryBuffer<Capacity>::computeQuinticPolynomialCoefficients()
 {
     for ( size_t i=0 ; i<Capacity-1 ; i++ )
     {
-        double T = (this->buffer_[i].timestamp - this->buffer_[i+1].timestamp).count();
+        double T = (this->buffer_[i+1].timestamp - this->buffer_[i].timestamp).count();
         double T2 = T * T;
         double T3 = T * T2;
         double T4 = T * T3;
@@ -150,7 +179,7 @@ void TrajectoryBuffer<Capacity>::computeQuinticPolynomialCoefficients()
             this->quintic_polynomial_coefficients_[j][i].a5 = coeffs(5);
         }
     }
-    this->quintic_polynomial_coefficients_ready_ = true;
+    this->quintic_polynomial_coefficients_ready_.store(true, std::memory_order_release);
 }
 
 template <std::size_t Capacity>
@@ -171,13 +200,13 @@ JointState TrajectoryBuffer<Capacity>::interpolateQuinticPolynomial(TimePoint qu
     size_t waypoint_end_id = 0;
 
     /* Find the nearest two waypoints in buffer. */
-    for ( size_t i=0 ; i<this->buffer_.size() ; i++ )
+    for ( size_t i=0 ; i<this->read_buffer_->size() ; i++ )
     {
-        if ( this->buffer_[i].timestamp <= query_time )
+        if ( this->read_buffer_[i].timestamp <= query_time )
         {
             waypoint_begin_id = i;
         }
-        if ( this->buffer_[i].timestamp > query_time )
+        if ( this->read_buffer_[i].timestamp > query_time )
         {
             waypoint_end_id = i;
             break;
@@ -191,7 +220,7 @@ JointState TrajectoryBuffer<Capacity>::interpolateQuinticPolynomial(TimePoint qu
 
     JointState interpolation;
 
-    double t1 = (query_time - this->buffer_[waypoint_begin_id].timestamp).count();
+    double t1 = (query_time - this->read_buffer_[waypoint_begin_id].timestamp).count();
     double t2 = t1 * t1;
     double t3 = t1 * t2;
     double t4 = t1 * t3;

@@ -45,9 +45,16 @@ public:
     };
 
     TrajectoryBuffer();
-    ~TrajectoryBuffer() = defualt;
+    ~TrajectoryBuffer() = default;
 
     bool push(const TrajectoryPoint &point);
+    void clear();
+    std::size_t size() const;
+    /**
+     * @brief Commit the trajectory write operation and interpolation coefficients pre-computation.
+     * This function will swap the write and read buffer atomic pointer.
+     */
+    void commit();
     /**
      * @brief Perform interpolation algorithm with given choice.
      * 
@@ -56,18 +63,19 @@ public:
      * @return JointState the target joint state at time point `query_time`.
      */
     JointState interpolate(InterpolationType type, TimePoint query_time) const;
-    void clear();
-    std::size_t size() const;
-
 private:
-    std::array<TrajectoryPoint, Capacity> buffer_;
+    std::array<TrajectoryPoint, Capacity> buffer_a_;
+    std::array<TrajectoryPoint, Capacity> buffer_b_;
+    std::array<TrajectoryPoint, Capacity>* write_buffer_;
+    std::array<TrajectoryPoint, Capacity>* read_buffer_;
+
     std::size_t size_;
     std::size_t head_;
     mutable std::mutex mutex_;
 
     /* A bool signal to determine whether the coefficients
      * for new waypoints are computed or not. */
-    bool quintic_polynomial_coefficients_ready_;
+    std::atomic<bool> quintic_polynomial_coefficients_ready_;
     /* A set of quintic polynomial coefficients for each joint and each trajectory segment */
     QuinticPolyCoeffs quintic_polynomial_coefficients_[ArmModel::num_dof_][Capacity-1];
 

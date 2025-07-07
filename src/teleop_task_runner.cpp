@@ -124,7 +124,7 @@ void TeleopTaskRunner::run()
             Eigen::Vector<double,ArmModel::num_dof_> joint_pos = this->left_arm_model_->getDampedLeastSquareInverseKinematics(
                 0.1, Eigen::Vector<double,6>(0.05,0.05,0.05,0.1,0.1,0.1), 200, this->left_hand_target_pose_, this->interface_->getLeftJointPosition());
             
-            this->checkInvalidTargetConfiguration(joint_pos);
+            this->checkInvalidJointPosition(joint_pos);
 
             this->left_arm_target_joint_pos_history_.push(joint_pos);
         }
@@ -162,7 +162,10 @@ void TeleopTaskRunner::scaleRightHandPose(Eigen::Matrix4d& pose)
     pose.block<3,3>(0,0) *= right_hand_orientation_offset_rotm;
 }
 
-bool TeleopTaskRunner::checkInvalidTargetConfiguration(const Eigen::Vector<double,ArmModel::num_dof_>& joint_pos)
+bool TeleopTaskRunner::checkInvalidJointPosition(const Eigen::Vector<double,ArmModel::num_dof_>& joint_pos)
 {
-
+    for ( auto it=this->left_arm_target_joint_pos_history_.crbegin() ; it!=this->left_arm_target_joint_pos_history_.crend() ; ++it )
+    {
+        
+    }
 }

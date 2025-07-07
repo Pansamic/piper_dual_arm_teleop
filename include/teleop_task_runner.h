@@ -101,7 +101,7 @@ private:
      * @return true 
      * @return false 
      */
-    bool checkInvalidTargetConfiguration(const Eigen::Vector<double,ArmModel::num_dof_>& joint_pos);
+    bool checkInvalidJointPosition(const Eigen::Vector<double,ArmModel::num_dof_>& joint_pos);
 };
 
 #endif // __TELEOP_TASK_RUNNER_H__
