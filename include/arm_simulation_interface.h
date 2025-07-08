@@ -41,14 +41,14 @@ public:
         const Eigen::Vector<double,ArmModel::num_dof_>& joint_vel,
         const Eigen::Vector<double,ArmModel::num_dof_>& joint_feedforward_torque) override;
     void setRightGripperControl(const double& position, const double& torque) override;
-    const Eigen::Vector<double,ArmModel::num_dof_>& getLeftJointPosition() const override;
-    const Eigen::Vector<double,ArmModel::num_dof_>& getLeftJointVelocity() const override;
-    const Eigen::Vector<double,ArmModel::num_dof_>& getLeftJointAcceleration() const override;
-    const Eigen::Vector<double,ArmModel::num_dof_>& getLeftJointTorque() const override;
-    const Eigen::Vector<double,ArmModel::num_dof_>& getRightJointPosition() const override;
-    const Eigen::Vector<double,ArmModel::num_dof_>& getRightJointVelocity() const override;
-    const Eigen::Vector<double,ArmModel::num_dof_>& getRightJointAcceleration() const override;
-    const Eigen::Vector<double,ArmModel::num_dof_>& getRightJointTorque() const override;
+    const Eigen::Vector<double,ArmModel::num_dof_>& getLeftJointPosition() override;
+    const Eigen::Vector<double,ArmModel::num_dof_>& getLeftJointVelocity() override;
+    const Eigen::Vector<double,ArmModel::num_dof_>& getLeftJointAcceleration() override;
+    const Eigen::Vector<double,ArmModel::num_dof_>& getLeftJointTorque() override;
+    const Eigen::Vector<double,ArmModel::num_dof_>& getRightJointPosition() override;
+    const Eigen::Vector<double,ArmModel::num_dof_>& getRightJointVelocity() override;
+    const Eigen::Vector<double,ArmModel::num_dof_>& getRightJointAcceleration() override;
+    const Eigen::Vector<double,ArmModel::num_dof_>& getRightJointTorque() override;
 private:
     const double syncMisalign = 0.1;        // maximum mis-alignment before re-sync (simulation seconds)
     const double simRefreshFraction = 0.7;  // fraction of refresh available for simulation

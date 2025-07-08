@@ -24,8 +24,8 @@ public:
     struct TrajectoryPoint
     {
         TimePoint timestamp;
-        // JointState state;
-        Eigen::Vector<double, ArmModel::num_dof_> joint_pos;
+        JointState state;
+        // Eigen::Vector<double, ArmModel::num_dof_> joint_pos;
     };
 
     enum InterpolationType
@@ -64,6 +64,11 @@ public:
      * @return JointState the target joint state at time point `query_time`.
      */
     JointState interpolate(InterpolationType type, TimePoint query_time) const;
+    /**
+     * @brief pre-compute coefficients of quintic polynomial interpolation
+     * using the waypoints in `buffer_`.
+     */
+    void computeQuinticPolynomialCoefficients();
 private:
     std::array<TrajectoryPoint, Capacity> buffer_a_;
     std::array<TrajectoryPoint, Capacity> buffer_b_;
@@ -92,11 +97,7 @@ private:
      * `this->right_arm_trajectory_buffer_`
      */
     JointState interpolateLinear(TimePoint query_time) const;
-    /**
-     * @brief pre-compute coefficients of quintic polynomial interpolation
-     * using the waypoints in `buffer_`.
-     */
-    void computeQuinticPolynomialCoefficients();
+
     /**
      * @brief Perform quintic polynomial interpolation on the trajectory waypoints.
      * 

@@ -20,13 +20,13 @@ ArmController::ArmController(
     std::shared_ptr<ArmModel> left_arm_model,
     std::shared_ptr<ArmModel> right_arm_model,
     std::shared_ptr<ArmInterface> interface,
-    RingBuffer<JointState>& left_arm_trajectory_buffer,
-    RingBuffer<JointState>& right_arm_trajectory_buffer,
+    TrajectoryBuffer<ArmPlanner::num_plan_waypoint_>& left_arm_trajectory_buffer,
+    TrajectoryBuffer<ArmPlanner::num_plan_waypoint_>& right_arm_trajectory_buffer,
     const size_t freq_ctrl):
     left_arm_model_(left_arm_model), right_arm_model_(right_arm_model),
     interface_(interface), freq_ctrl_(freq_ctrl),
-    left_arm_target_state_buffer_(left_arm_trajectory_buffer),
-    right_arm_target_state_buffer_(right_arm_trajectory_buffer),
+    left_arm_trajectory_buffer_(left_arm_trajectory_buffer),
+    right_arm_trajectory_buffer_(right_arm_trajectory_buffer),
     control_thread_(&ArmController::threadControl, this), running_(true)
 {
 
@@ -71,7 +71,7 @@ void ArmController::threadControl()
     };
 
     struct timespec wakeup_time = {0,0};
-    static const struct timespec cycletime = {0, 1e9/this->freq_ctrl_};
+    static const struct timespec cycletime = {0, 1000000000/this->freq_ctrl_};
     clock_gettime(CLOCK_MONOTONIC, &wakeup_time);
 
     while(this->running_)
@@ -92,10 +92,8 @@ void ArmController::threadControl()
 
         feedforward_torque = generalized_mass_matrix * actual_joint_state.joint_acc + centrifugal_coriolis_matrix * actual_joint_state.joint_vel + gravity_compensate;
 
-        if ( this->left_arm_target_state_buffer_.try_pop(target_joint_state) )
-        {
-            this->interface_->setLeftJointControl(target_joint_state.joint_pos, target_joint_state.joint_vel, feedforward_torque);
-        }
+        target_joint_state = this->left_arm_trajectory_buffer_.interpolate(TrajectoryBuffer<>::QUINTIC_POLYNOMIAL, std::chrono::steady_clock::now());
+        this->interface_->setLeftJointControl(target_joint_state.joint_pos, target_joint_state.joint_vel, feedforward_torque);
 
         actual_joint_state.joint_pos = this->interface_->getRightJointPosition();
         actual_joint_state.joint_vel = this->interface_->getRightJointVelocity();
@@ -110,9 +108,8 @@ void ArmController::threadControl()
 
         feedforward_torque = generalized_mass_matrix * actual_joint_state.joint_acc + centrifugal_coriolis_matrix * actual_joint_state.joint_vel + gravity_compensate;
 
-        if ( this->right_arm_target_state_buffer_.try_pop(target_joint_state) )
-        {
-            this->interface_->setRightJointControl(target_joint_state.joint_pos, target_joint_state.joint_vel, feedforward_torque);
-        }
+        target_joint_state = this->right_arm_trajectory_buffer_.interpolate(TrajectoryBuffer<>::QUINTIC_POLYNOMIAL, std::chrono::steady_clock::now());
+        this->interface_->setRightJointControl(target_joint_state.joint_pos, target_joint_state.joint_vel, feedforward_torque);
+        
     }
 }

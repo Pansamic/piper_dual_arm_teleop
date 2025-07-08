@@ -24,8 +24,8 @@ public:
         std::shared_ptr<ArmModel> left_arm_model,
         std::shared_ptr<ArmModel> right_arm_model,
         std::shared_ptr<ArmInterface> interface,
-        RingBuffer<JointState>& left_arm_trajectory_buffer,
-        RingBuffer<JointState>& right_arm_trajectory_buffer,
+        TrajectoryBuffer<ArmPlanner::num_plan_waypoint_>& left_arm_trajectory_buffer,
+        TrajectoryBuffer<ArmPlanner::num_plan_waypoint_>& right_arm_trajectory_buffer,
         const size_t freq_ctrl);
     ~ArmController();
 private:
@@ -43,8 +43,8 @@ private:
     std::shared_ptr<ArmModel> right_arm_model_;
 
     /* Target joint state buffer to store control sequence */
-    RingBuffer<JointState>& left_arm_target_state_buffer_;
-    RingBuffer<JointState>& right_arm_target_state_buffer_;
+    TrajectoryBuffer<ArmPlanner::num_plan_waypoint_>& left_arm_trajectory_buffer_;
+    TrajectoryBuffer<ArmPlanner::num_plan_waypoint_>& right_arm_trajectory_buffer_;
 
     /* Frequency of control loop */
     size_t freq_ctrl_;

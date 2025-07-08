@@ -1053,7 +1053,6 @@ Eigen::Vector<double,6> ArmModel::getInverseKinematics(
     }
     if ( best_id == -1 )
     {
-        std::cout << "no ik in pos limit." << std::endl;
         throw std::runtime_error("inverse kinematics no solution");
     }
     best_joint_pos = joint_pos.col(best_id);

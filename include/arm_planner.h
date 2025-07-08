@@ -35,19 +35,18 @@ public:
     ArmPlanner(
         TrajectoryBuffer<num_plan_waypoint_>& left_arm_trajectory_buffer,
         TrajectoryBuffer<num_plan_waypoint_>& right_arm_trajectory_buffer,
-        size_t freq_plan, size_t freq_ctrl);
-    ~ArmPlanner() = default;
+        size_t freq_plan);
+    ~ArmPlanner();
     void setLeftArmTargetJointState(const JointState& joint_state);
     void setRightArmTargetJointState(const JointState& joint_state);
 private:
-
     std::atomic<bool> running_;
     /* planner loop interval, unit: second */
     double dt_plan_;
     /* controller loop interval, unit: second */
-    double dt_ctrl_;
+    // double dt_ctrl_;
     /* amount of waypoints in a trajectory */
-    size_t traj_len_;
+    // size_t traj_len_;
 
     /* used to mark the end waypoint of last trajectory slice
      * for continuous planning */

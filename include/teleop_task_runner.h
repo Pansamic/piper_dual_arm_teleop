@@ -30,7 +30,7 @@ class TeleopTaskRunner
 {
 public:
     TeleopTaskRunner(std::shared_ptr<ArmInterface> interface, size_t freq_plan, size_t freq_ctrl);
-    ~TeleopTaskRunner() = default;
+    ~TeleopTaskRunner();
     void run();
 private:
     static const Eigen::Vector3d head_position_;
@@ -102,14 +102,21 @@ private:
      * @return false 
      */
     bool checkInvalidJointPosition(const Eigen::Vector<double,ArmModel::num_dof_>& joint_pos);
+    
     /**
      * @brief Compute joint velocity with Sacvitzky-Golay filter from the derivative
      * of joint position history.
      * 
+     * @param history Joint state history.
      * @param joint_pos Latest joint position.
+     * @param joint_vel Joint velocity result.
+     * @param joint_acc Joint Acceleration result.
      */
-    Eigen::Vector<double,ArmModel::num_dof_> computeJointVelocity(const Eigen::Vector<double,ArmModel::num_dof_>& joint_pos);
-    Eigen::Vector<double,ArmModel::num_dof_> computeJointAcceleration(const Eigen::Vector<double,ArmModel::num_dof_>& joint_pos);
+    void computeJointVelocityAndAcceleration(
+        const RingBuffer<JointState>& history,
+        const Eigen::Vector<double, ArmModel::num_dof_>& joint_pos,
+        Eigen::Vector<double, ArmModel::num_dof_>& joint_vel,
+        Eigen::Vector<double, ArmModel::num_dof_>& joint_acc);
 };
 
 #endif // __TELEOP_TASK_RUNNER_H__

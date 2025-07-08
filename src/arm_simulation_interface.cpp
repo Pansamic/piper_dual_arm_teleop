@@ -81,45 +81,45 @@ void ArmSimulationInterface::setRightGripperControl(const double& position, cons
     this->d->ctrl[11] = position;
 }
 
-const Eigen::Vector<double,ArmModel::num_dof_>& ArmSimulationInterface::getLeftJointPosition() const
+const Eigen::Vector<double,ArmModel::num_dof_>& ArmSimulationInterface::getLeftJointPosition()
 {
-    std::lock_guard(this->left_arm_mutex_);
+    std::lock_guard<std::mutex> lock(this->left_arm_mutex_);
     return this->left_arm_target_state_.joint_pos;
 }
 
-const Eigen::Vector<double,ArmModel::num_dof_>& ArmSimulationInterface::getLeftJointVelocity() const
+const Eigen::Vector<double,ArmModel::num_dof_>& ArmSimulationInterface::getLeftJointVelocity()
 {
-    std::lock_guard(this->left_arm_mutex_);
+    std::lock_guard<std::mutex> lock(this->left_arm_mutex_);
     return this->left_arm_target_state_.joint_vel;
 }
 
-const Eigen::Vector<double,ArmModel::num_dof_>& ArmSimulationInterface::getLeftJointTorque() const
+const Eigen::Vector<double,ArmModel::num_dof_>& ArmSimulationInterface::getLeftJointTorque()
 {
-    std::lock_guard(this->left_arm_mutex_);
+    std::lock_guard<std::mutex> lock(this->left_arm_mutex_);
     return this->left_arm_target_state_.joint_torq;
 }
 
-const Eigen::Vector<double,ArmModel::num_dof_>& ArmSimulationInterface::getRightJointPosition() const
+const Eigen::Vector<double,ArmModel::num_dof_>& ArmSimulationInterface::getRightJointPosition()
 {
-    std::lock_guard(this->right_arm_mutex_);
+    std::lock_guard<std::mutex> lock(this->right_arm_mutex_);
     return this->right_arm_target_state_.joint_pos;
 }
 
-const Eigen::Vector<double,ArmModel::num_dof_>& ArmSimulationInterface::getRightJointVelocity() const
+const Eigen::Vector<double,ArmModel::num_dof_>& ArmSimulationInterface::getRightJointVelocity()
 {
-    std::lock_guard(this->right_arm_mutex_);
+    std::lock_guard<std::mutex> lock(this->right_arm_mutex_);
     return this->right_arm_target_state_.joint_vel;
 }
 
-const Eigen::Vector<double,ArmModel::num_dof_>& ArmSimulationInterface::getRightJointAcceleration() const
+const Eigen::Vector<double,ArmModel::num_dof_>& ArmSimulationInterface::getRightJointAcceleration()
 {
-    std::lock_guard(this->right_arm_mutex_);
+    std::lock_guard<std::mutex> lock(this->right_arm_mutex_);
     return this->right_arm_target_state_.joint_acc;
 }
 
-const Eigen::Vector<double,ArmModel::num_dof_>& ArmSimulationInterface::getRightJointTorque() const
+const Eigen::Vector<double,ArmModel::num_dof_>& ArmSimulationInterface::getRightJointTorque()
 {
-    std::lock_guard(this->right_arm_mutex_);
+    std::lock_guard<std::mutex> lock(this->right_arm_mutex_);
     return this->right_arm_target_state_.joint_torq;
 }
 

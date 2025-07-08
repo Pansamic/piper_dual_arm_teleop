@@ -13,24 +13,21 @@
 #include <arm_interface.h>
 #include <arm_hardware_interface.h>
 
-
 /**
  * @brief Initialize SocketCAN
  * 
  */
-ArmHardwareInterface::ArmHardwareInterface(const char* left_arm_can_name, const char* right_arm_can_name)
+ArmHardwareInterface::ArmHardwareInterface(const char* left_arm_can_name, const char* right_arm_can_name):
+    left_can_socket_(-1), right_can_socket_(-1), running_(true),
+    left_actual_joint_pos_(Eigen::Vector<double,ArmModel::num_dof_>::Zero()),
+    left_actual_joint_vel_(Eigen::Vector<double,ArmModel::num_dof_>::Zero()),
+    left_actual_joint_acc_(Eigen::Vector<double,ArmModel::num_dof_>::Zero()),
+    left_actual_joint_torq_(Eigen::Vector<double,ArmModel::num_dof_>::Zero()),
+    right_actual_joint_pos_(Eigen::Vector<double,ArmModel::num_dof_>::Zero()),
+    right_actual_joint_vel_(Eigen::Vector<double,ArmModel::num_dof_>::Zero()),
+    right_actual_joint_acc_(Eigen::Vector<double,ArmModel::num_dof_>::Zero()),
+    right_actual_joint_torq_(Eigen::Vector<double,ArmModel::num_dof_>::Zero())
 {
-    this->left_can_socket_ = -1;
-    this->right_can_socket_ = -1;
-
-    this->left_actual_joint_pos_.setZero();
-    this->left_actual_joint_vel_.setZero();
-    this->left_actual_joint_torq_.setZero();
-
-    this->right_actual_joint_pos_.setZero();
-    this->right_actual_joint_vel_.setZero();
-    this->right_actual_joint_torq_.setZero();
-
     struct sockaddr_can can_addr_ = {0};
     struct ifreq can_ifr_ = {0};
 
@@ -47,9 +44,6 @@ ArmHardwareInterface::ArmHardwareInterface(const char* left_arm_can_name, const 
     can_addr_.can_family = AF_CAN;
     can_addr_.can_ifindex = can_ifr_.ifr_ifindex;
     bind(this->right_can_socket_, (struct sockaddr *)&can_addr_, sizeof(can_addr_));
-
-    /* Set interface running flag. */
-    running_ = true;
 
     /* Start listening on actuator feedback information */
     read_thread_ = std::thread(&ArmHardwareInterface::threadCanReceive, this);
@@ -130,7 +124,7 @@ void ArmHardwareInterface::setLeftJointControl(
     const Eigen::Vector<double,ArmModel::num_dof_>& joint_vel,
     const Eigen::Vector<double,ArmModel::num_dof_>& joint_feedforward_torque)
 {
-    std::lock_guard(this->left_joints_mutex_);
+    std::lock_guard<std::mutex> lock(this->left_joints_mutex_);
     setActuatorControl(this->left_can_socket_, joint_pos, joint_vel, joint_feedforward_torque);
 }
 
@@ -139,7 +133,7 @@ void ArmHardwareInterface::setRightJointControl(
     const Eigen::Vector<double,ArmModel::num_dof_>& joint_vel,
     const Eigen::Vector<double,ArmModel::num_dof_>& joint_feedforward_torque)
 {
-    std::lock_guard(this->right_joints_mutex_);
+    std::lock_guard<std::mutex> lock(this->right_joints_mutex_);
     setActuatorControl(this->right_can_socket_, joint_pos, joint_vel, joint_feedforward_torque);
 }
 
@@ -153,51 +147,51 @@ void ArmHardwareInterface::setRightGripperControl(const double& position, const 
     setGripperControl(this->right_can_socket_, position, torque);
 }
 
-const Eigen::Vector<double,ArmModel::num_dof_>& ArmHardwareInterface::getLeftJointPosition() const
+const Eigen::Vector<double,ArmModel::num_dof_>& ArmHardwareInterface::getLeftJointPosition()
 {
-    std::lock_guard(this->left_joints_mutex_);
+    std::lock_guard<std::mutex> lock(this->left_joints_mutex_);
     return this->left_actual_joint_pos_;
 }
 
-const Eigen::Vector<double,ArmModel::num_dof_>& ArmHardwareInterface::getLeftJointVelocity() const
+const Eigen::Vector<double,ArmModel::num_dof_>& ArmHardwareInterface::getLeftJointVelocity()
 {
-    std::lock_guard(this->left_joints_mutex_);
+    std::lock_guard<std::mutex> lock(this->left_joints_mutex_);
     return this->left_actual_joint_vel_;
 }
 
-const Eigen::Vector<double,ArmModel::num_dof_>& ArmHardwareInterface::getLeftJointAcceleration() const
+const Eigen::Vector<double,ArmModel::num_dof_>& ArmHardwareInterface::getLeftJointAcceleration()
 {
-    // std::lock_guard(this->left_joints_mutex_);
-    return Eigen::Vector<double,ArmModel::num_dof_>::Zero();
+    std::lock_guard<std::mutex> lock(this->left_joints_mutex_);
+    return this->left_actual_joint_acc_;
 }
 
-const Eigen::Vector<double,ArmModel::num_dof_>& ArmHardwareInterface::getLeftJointTorque() const
+const Eigen::Vector<double,ArmModel::num_dof_>& ArmHardwareInterface::getLeftJointTorque()
 {
-    std::lock_guard(this->left_joints_mutex_);
+    std::lock_guard<std::mutex> lock(this->left_joints_mutex_);
     return this->left_actual_joint_torq_;
 }
 
-const Eigen::Vector<double,ArmModel::num_dof_>& ArmHardwareInterface::getRightJointPosition() const
+const Eigen::Vector<double,ArmModel::num_dof_>& ArmHardwareInterface::getRightJointPosition()
 {
-    std::lock_guard(this->right_joints_mutex_);
+    std::lock_guard<std::mutex> lock(this->right_joints_mutex_);
     return this->right_actual_joint_pos_;
 }
 
-const Eigen::Vector<double,ArmModel::num_dof_>& ArmHardwareInterface::getRightJointVelocity() const
+const Eigen::Vector<double,ArmModel::num_dof_>& ArmHardwareInterface::getRightJointVelocity()
 {
-    std::lock_guard(this->right_joints_mutex_);
+    std::lock_guard<std::mutex> lock(this->right_joints_mutex_);
     return this->right_actual_joint_vel_;
 }
 
-const Eigen::Vector<double,ArmModel::num_dof_>& ArmHardwareInterface::getRightJointAcceleration() const
+const Eigen::Vector<double,ArmModel::num_dof_>& ArmHardwareInterface::getRightJointAcceleration()
 {
-    // std::lock_guard(this->right_joints_mutex_);
-    return Eigen::Vector<double,ArmModel::num_dof_>::Zero();
+    std::lock_guard<std::mutex> lock(this->right_joints_mutex_);
+    return this->right_actual_joint_acc_;
 }
 
-const Eigen::Vector<double,ArmModel::num_dof_>& ArmHardwareInterface::getRightJointTorque() const
+const Eigen::Vector<double,ArmModel::num_dof_>& ArmHardwareInterface::getRightJointTorque()
 {
-    std::lock_guard(this->right_joints_mutex_);
+    std::lock_guard<std::mutex> lock(this->right_joints_mutex_);
     return this->right_actual_joint_torq_;
 }
 
@@ -206,7 +200,7 @@ void ArmHardwareInterface::threadCanReceive(void)
     struct can_frame frame = {0};
     size_t recvbytes = 0;
 
-    while (this->running_)
+    while ( this->running_ )
     {
         recvbytes = read(this->left_can_socket_, &frame, sizeof(struct can_frame));
         if (recvbytes > 0)
@@ -216,7 +210,7 @@ void ArmHardwareInterface::threadCanReceive(void)
             parseCanFrame(this->left_can_socket_, &frame);
         }
         recvbytes = read(this->right_can_socket_, &frame, sizeof(struct can_frame));
-        if (recvbytes > 0)
+        if ( recvbytes > 0 )
         {
             std::lock_guard<std::mutex> lock(this->right_arm_can_mtx_);
             /* parse feedback frame data */

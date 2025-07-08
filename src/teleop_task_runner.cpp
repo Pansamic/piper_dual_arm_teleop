@@ -8,6 +8,7 @@
  * @copyright Copyright (c) 2025
  * 
  */
+#include <termination.h>
 #include <teleop_task_runner.h>
 
 const Eigen::Vector3d TeleopTaskRunner::head_position_ = Eigen::Vector3d(0.325024,0,0.80246);
@@ -32,7 +33,7 @@ const Eigen::Matrix4d TeleopTaskRunner::right_arm_base_transform_ = (Eigen::Matr
 // right hand home orientation: 0.000044497177102, -0.382683431921232, -0.923879531439719, -0.000018431334243
 
 TeleopTaskRunner::TeleopTaskRunner(std::shared_ptr<ArmInterface> interface, size_t freq_plan, size_t freq_ctrl):
-    freq_plan_(freq_plan_), freq_ctrl_(freq_ctrl_),
+    freq_plan_(freq_plan_), freq_ctrl_(freq_ctrl),
     interface_(interface),
     left_hand_target_pos_(Eigen::Vector3d::Zero()),
     left_hand_target_orientation_(Eigen::Quaterniond::Identity()),
@@ -44,10 +45,8 @@ TeleopTaskRunner::TeleopTaskRunner(std::shared_ptr<ArmInterface> interface, size
     right_hand_target_pose_(Eigen::Matrix4d::Identity()),
     right_hand_actual_orientation_(Eigen::Quaterniond::Identity()),
     right_gripper_control_(0),
-    left_arm_trajectory_buffer_(freq_ctrl/freq_plan*this->traj_buf_size_),
-    right_arm_trajectory_buffer_(freq_ctrl/freq_plan*this->traj_buf_size_),
-    left_arm_target_joint_pos_history_(32),
-    right_arm_target_joint_pos_history_(32),
+    left_arm_joint_state_history_(32),
+    right_arm_joint_state_history_(32),
     channel_(this->io_context_, "192.168.1.105", 54321, "192.168.1.5", 12345),
     send_mq_(RingBuffer<whole_body_msg>{10}),
     recv_mq_(RingBuffer<whole_body_msg>{10})
@@ -65,7 +64,7 @@ TeleopTaskRunner::TeleopTaskRunner(std::shared_ptr<ArmInterface> interface, size
     this->planner_ = std::make_unique<ArmPlanner>(
         this->left_arm_trajectory_buffer_,
         this->right_arm_trajectory_buffer_,
-        this->freq_plan_, this->freq_ctrl_);
+        this->freq_plan_);
 
     this->controller_ = std::make_unique<ArmController>(
         this->left_arm_model_,
@@ -87,6 +86,12 @@ void TeleopTaskRunner::run()
 
     while ( this->running_ )
     {
+        /* Check for program-wide stop flag. */
+        if ( TerminationHandler::stop_requested.load() == true )
+        {
+            this->running_.store(false, std::memory_order_release);
+            break;
+        }
         if ( !this->recv_mq_.dequeue(msg) )
         {
             /* Continue if message not received. */
@@ -122,12 +127,15 @@ void TeleopTaskRunner::run()
             
             if ( this->checkInvalidJointPosition(joint_pos) )
             {
-                this->planner_->setLeftArmTargetJointState();
-                this->left_arm_target_joint_pos_history_.push(joint_pos);
+                JointState joint_state;
+                joint_state.joint_torq.setZero();
+                joint_state.joint_pos = joint_pos;
+                this->computeJointVelocityAndAcceleration(
+                    this->left_arm_joint_state_history_,
+                    joint_pos, joint_state.joint_vel, joint_state.joint_acc);
+                this->planner_->setLeftArmTargetJointState(joint_state);
+                this->left_arm_joint_state_history_.push(joint_state);
             }
-
-            
-            
         }
         /* Check for right arm control enable signal */
         if ( msg.mask&(1<<12) )
@@ -145,6 +153,24 @@ void TeleopTaskRunner::run()
             this->right_hand_target_pose_.block<3,3>(0,0) = this->right_hand_target_orientation_.toRotationMatrix();
             this->right_hand_target_pose_.block<3,1>(0,3) = this->right_hand_target_pos_;
             this->right_hand_target_pose_(3,3) = 1;
+
+            this->scaleRightHandPose(this->right_hand_target_pose_);
+
+            /* Get least damped inverse kinematics */
+            Eigen::Vector<double,ArmModel::num_dof_> joint_pos = this->right_arm_model_->getDampedLeastSquareInverseKinematics(
+                0.1, Eigen::Vector<double,6>(0.05,0.05,0.05,0.1,0.1,0.1), 200, this->right_hand_target_pose_, this->interface_->getRightJointPosition());
+
+            if ( this->checkInvalidJointPosition(joint_pos) )
+            {
+                JointState joint_state;
+                joint_state.joint_torq.setZero();
+                joint_state.joint_pos = joint_pos;
+                this->computeJointVelocityAndAcceleration(
+                    this->right_arm_joint_state_history_,
+                    joint_pos, joint_state.joint_vel, joint_state.joint_acc);
+                this->planner_->setRightArmTargetJointState(joint_state);
+                this->right_arm_joint_state_history_.push(joint_state);
+            }
         }
     }
 }
@@ -173,20 +199,55 @@ void TeleopTaskRunner::scaleRightHandPose(Eigen::Matrix4d& pose)
 
 bool TeleopTaskRunner::checkInvalidJointPosition(const Eigen::Vector<double,ArmModel::num_dof_>& joint_pos)
 {
-    for ( auto it=this->left_arm_joint_state_history_.crbegin() ; it!=this->left_arm_joint_state_history_.crend() ; ++it )
-    {
+    // for ( auto it=this->left_arm_joint_state_history_.crbegin() ; it!=this->left_arm_joint_state_history_.crend() ; ++it )
+    // {
         
-    }
+    // }
+    return true;
 }
 
-Eigen::Vector<double,ArmModel::num_dof_> TeleopTaskRunner::computeJointVelocity(
+void TeleopTaskRunner::computeJointVelocityAndAcceleration(
     const RingBuffer<JointState>& history,
-    const Eigen::Vector<double,ArmModel::num_dof_>& joint_pos)
+    const Eigen::Vector<double, ArmModel::num_dof_>& joint_pos,
+    Eigen::Vector<double, ArmModel::num_dof_>& joint_vel,
+    Eigen::Vector<double, ArmModel::num_dof_>& joint_acc)
 {
+    constexpr int window_size = 5;
+    constexpr int poly_deg = 2;
+    constexpr int dof = ArmModel::num_dof_;
+    static_assert(window_size >= poly_deg + 1, "Insufficient data points");
 
-}
+    std::array<Eigen::Vector<double, dof>, window_size> pos_buffer;
+    int valid_count = 0;
 
-Eigen::Vector<double,ArmModel::num_dof_> TeleopTaskRunner::computeJointAcceleration(const Eigen::Vector<double,ArmModel::num_dof_>& joint_pos)
-{
+    auto it = history.crbegin();
+    for (int i = 0; i < window_size && it != history.crend(); ++i, ++it)
+    {
+        pos_buffer[i] = it->joint_pos;
+        valid_count++;
+    }
 
+    if (valid_count < window_size)
+    {
+        throw std::runtime_error("Insufficient history for velocity/acceleration estimation");
+    }
+
+    constexpr double dt = 1.0 / 72.0;
+    Eigen::Matrix<double, window_size, poly_deg + 1> A;
+    Eigen::Matrix<double, window_size, dof> V;
+
+    for (int i = 0; i < window_size; ++i)
+    {
+        double t = -dt * (window_size - 1 - i);
+        A(i, 0) = 1.0;
+        A(i, 1) = t;
+        A(i, 2) = t * t;
+        V.row(i) = pos_buffer[i];
+    }
+
+    // Fit polynomial coefficients: coeffs = (AᵗA)⁻¹ AᵗV
+    Eigen::Matrix<double, poly_deg + 1, dof> coeffs = A.colPivHouseholderQr().solve(V);
+
+    joint_vel = coeffs.row(1);          // First derivative at t = 0
+    joint_acc = 2.0 * coeffs.row(2);    // Second derivative at t = 0
 }
