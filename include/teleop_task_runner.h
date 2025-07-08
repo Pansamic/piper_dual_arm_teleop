@@ -20,6 +20,7 @@
 #include <msgs/whole_body_msg/whole_body_receiver.hpp>
 #include <msgs/whole_body_msg/whole_body_sender.hpp>
 #include <joint_state.h>
+#include <trajectory_buffer.h>
 #include <arm_model.h>
 #include <arm_controller.h>
 #include <arm_planner.h>
@@ -85,15 +86,14 @@ private:
      * planner object and controller object and they share this buffer 
      * because the planner will write trajectory joint states into this 
      * buffer and controller will read trajectory from this buffer.*/
-    RingBuffer<JointState> left_arm_trajectory_buffer_;
-    RingBuffer<JointState> right_arm_trajectory_buffer_;
+    TrajectoryBuffer<ArmPlanner::num_plan_waypoint_> left_arm_trajectory_buffer_;
+    TrajectoryBuffer<ArmPlanner::num_plan_waypoint_> right_arm_trajectory_buffer_;
 
-    RingBuffer<Eigen::Vector<double,ArmModel::num_dof_>> left_arm_target_joint_pos_history_; 
-    RingBuffer<Eigen::Vector<double,ArmModel::num_dof_>> right_arm_target_joint_pos_history_;
+    RingBuffer<JointState> left_arm_joint_state_history_; 
+    RingBuffer<JointState> right_arm_joint_state_history_;
 
     void scaleLeftHandPose(Eigen::Matrix4d& pose);
     void scaleRightHandPose(Eigen::Matrix4d& pose);
-
     /**
      * @brief Check joint position jitter, or 
      * 
@@ -102,6 +102,14 @@ private:
      * @return false 
      */
     bool checkInvalidJointPosition(const Eigen::Vector<double,ArmModel::num_dof_>& joint_pos);
+    /**
+     * @brief Compute joint velocity with Sacvitzky-Golay filter from the derivative
+     * of joint position history.
+     * 
+     * @param joint_pos Latest joint position.
+     */
+    Eigen::Vector<double,ArmModel::num_dof_> computeJointVelocity(const Eigen::Vector<double,ArmModel::num_dof_>& joint_pos);
+    Eigen::Vector<double,ArmModel::num_dof_> computeJointAcceleration(const Eigen::Vector<double,ArmModel::num_dof_>& joint_pos);
 };
 
 #endif // __TELEOP_TASK_RUNNER_H__

@@ -46,8 +46,6 @@ TeleopTaskRunner::TeleopTaskRunner(std::shared_ptr<ArmInterface> interface, size
     right_gripper_control_(0),
     left_arm_trajectory_buffer_(freq_ctrl/freq_plan*this->traj_buf_size_),
     right_arm_trajectory_buffer_(freq_ctrl/freq_plan*this->traj_buf_size_),
-    left_arm_target_joint_state_buffer_(32),
-    right_arm_target_joint_state_buffer_(32),
     left_arm_target_joint_pos_history_(32),
     right_arm_target_joint_pos_history_(32),
     channel_(this->io_context_, "192.168.1.105", 54321, "192.168.1.5", 12345),
@@ -65,8 +63,6 @@ TeleopTaskRunner::TeleopTaskRunner(std::shared_ptr<ArmInterface> interface, size
     this->right_arm_model_ = std::make_shared<ArmModel>(right_arm_base_transform_);
 
     this->planner_ = std::make_unique<ArmPlanner>(
-        this->left_arm_target_joint_state_buffer_,
-        this->right_arm_target_joint_state_buffer_,
         this->left_arm_trajectory_buffer_,
         this->right_arm_trajectory_buffer_,
         this->freq_plan_, this->freq_ctrl_);
@@ -126,10 +122,11 @@ void TeleopTaskRunner::run()
             
             if ( this->checkInvalidJointPosition(joint_pos) )
             {
+                this->planner_->setLeftArmTargetJointState();
                 this->left_arm_target_joint_pos_history_.push(joint_pos);
             }
 
-            this->left_arm_target_joint_state_buffer_.push()
+            
             
         }
         /* Check for right arm control enable signal */
@@ -176,8 +173,20 @@ void TeleopTaskRunner::scaleRightHandPose(Eigen::Matrix4d& pose)
 
 bool TeleopTaskRunner::checkInvalidJointPosition(const Eigen::Vector<double,ArmModel::num_dof_>& joint_pos)
 {
-    for ( auto it=this->left_arm_target_joint_pos_history_.crbegin() ; it!=this->left_arm_target_joint_pos_history_.crend() ; ++it )
+    for ( auto it=this->left_arm_joint_state_history_.crbegin() ; it!=this->left_arm_joint_state_history_.crend() ; ++it )
     {
         
     }
+}
+
+Eigen::Vector<double,ArmModel::num_dof_> TeleopTaskRunner::computeJointVelocity(
+    const RingBuffer<JointState>& history,
+    const Eigen::Vector<double,ArmModel::num_dof_>& joint_pos)
+{
+
+}
+
+Eigen::Vector<double,ArmModel::num_dof_> TeleopTaskRunner::computeJointAcceleration(const Eigen::Vector<double,ArmModel::num_dof_>& joint_pos)
+{
+
 }

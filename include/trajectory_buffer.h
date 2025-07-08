@@ -24,7 +24,8 @@ public:
     struct TrajectoryPoint
     {
         TimePoint timestamp;
-        JointState state;
+        // JointState state;
+        Eigen::Vector<double, ArmModel::num_dof_> joint_pos;
     };
 
     enum InterpolationType

@@ -12,8 +12,8 @@
 #include <arm_planner.h>
 
 ArmPlanner::ArmPlanner(
-    TrajectoryBuffer<plan_waypoint_amount_>& left_arm_trajectory_buffer,
-    TrajectoryBuffer<plan_waypoint_amount_>& right_arm_trajectory_buffer,
+    TrajectoryBuffer<num_plan_waypoint_>& left_arm_trajectory_buffer,
+    TrajectoryBuffer<num_plan_waypoint_>& right_arm_trajectory_buffer,
     size_t freq_plan, size_t freq_ctrl):
     dt_plan_(1.0/static_cast<double>(freq_plan)), dt_ctrl_(1.0/static_cast<double>(freq_ctrl)),
     traj_len_(freq_ctrl/freq_plan),
@@ -45,10 +45,10 @@ ArmPlanner::~ArmPlanner()
     }
 }
 
-// void ArmPlanner::interpolateLinear(RingBuffer<JointState>& traj_buf, const std::array<JointState, plan_waypoint_amount_>& waypoints)
+// void ArmPlanner::interpolateLinear(RingBuffer<JointState>& traj_buf, const std::array<JointState, num_plan_waypoint_>& waypoints)
 // {
 //     constexpr size_t dof = ArmModel::num_dof_;
-//     const size_t num_segments = plan_waypoint_amount_ - 1;
+//     const size_t num_segments = num_plan_waypoint_ - 1;
 //     const size_t total_samples = traj_len_;
 //     const double dt = dt_ctrl_;
 //     const double T = dt_plan_ / double(num_segments);
@@ -74,11 +74,11 @@ ArmPlanner::~ArmPlanner()
 //     }
 // }
 
-// void ArmPlanner::interpolateBSpline(RingBuffer<JointState>& traj_buf, const std::array<JointState, plan_waypoint_amount_>& waypoints)
+// void ArmPlanner::interpolateBSpline(RingBuffer<JointState>& traj_buf, const std::array<JointState, num_plan_waypoint_>& waypoints)
 // {
 //     constexpr size_t dof = ArmModel::num_dof_;
 //     const int degree = 3;  // Cubic B-spline
-//     const int n = plan_waypoint_amount_ - 1;  // Number of control points - 1
+//     const int n = num_plan_waypoint_ - 1;  // Number of control points - 1
 //     const int k = degree + 1;  // order
 //     const double t_start = 0.0;
 //     const double t_end = 1.0;
@@ -154,10 +154,10 @@ ArmPlanner::~ArmPlanner()
 //     }
 // }
 
-// void ArmPlanner::interpolateQuinticPolynomial(RingBuffer<JointState>& traj_buf, const std::array<JointState, plan_waypoint_amount_>& waypoints)
+// void ArmPlanner::interpolateQuinticPolynomial(RingBuffer<JointState>& traj_buf, const std::array<JointState, num_plan_waypoint_>& waypoints)
 // {
 //     constexpr size_t dof = ArmModel::num_dof_;
-//     const size_t num_segments = plan_waypoint_amount_ - 1;
+//     const size_t num_segments = num_plan_waypoint_ - 1;
 //     const size_t total_samples = traj_len_;
 //     const double dt = dt_ctrl_;
 //     const double T = dt_plan_ / double(num_segments);
@@ -228,7 +228,7 @@ void ArmPlanner::planDualArmLinear(
         std::chrono::duration_cast<std::chrono::steady_clock::duration>(std::chrono::duration<double>(this->dt_plan_));
 
     /* Create a trajectory waypoint */
-    TrajectoryBuffer<this->plan_waypoint_amount_>::TrajectoryPoint waypoint;
+    TrajectoryBuffer<this->num_plan_waypoint_>::TrajectoryPoint waypoint;
 
     /* zero velocities/accelerations/torque here, to be filled by interpolation */
     waypoint.state.joint_vel.setZero();
@@ -238,9 +238,9 @@ void ArmPlanner::planDualArmLinear(
     waypoint.timestamp = std::chrono::steady_clock::now();
 
     // fill internal_waypoints_[0..N-1]
-    for (size_t i = 0; i < this->plan_waypoint_amount_; ++i)
+    for (size_t i = 0; i < this->num_plan_waypoint_; ++i)
     {
-        double alpha = double(i+1) / (this->plan_waypoint_amount_ + 1);
+        double alpha = double(i+1) / (this->num_plan_waypoint_ + 1);
 
         // waypoint.timestamp += std::chrono::duration_cast<std::chrono::steady_clock::duration>()
         waypoint.timestamp += plan_duration;
