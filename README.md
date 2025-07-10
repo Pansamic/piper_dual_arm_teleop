@@ -17,3 +17,5 @@ Dual AgileX Piper 6-axis manipulator.
 ## todo
 
 - [ ] Refactor arm model as rigid body tree.
+- [ ] Create a config file to replace some constants like ArmModel::num_dof_ and ArmPlanner::num_plan_waypoint_.
+- [ ] Remove B-Spline and other interpolation methods in `TrajectoryBuffer`.
