@@ -156,7 +156,8 @@ public:
     {
         for ( size_t i=0 ; i<Capacity-1 ; i++ )
         {
-            double T = (this->write_buffer_->buffer.at(i+1).timestamp - this->write_buffer_->buffer.at(i).timestamp).count();
+            std::chrono::duration<double> elapsed_time = this->write_buffer_->buffer.at(i+1).timestamp - this->write_buffer_->buffer.at(i).timestamp;
+            double T = elapsed_time.count();
             double T2 = T * T;
             double T3 = T * T2;
             double T4 = T * T3;
@@ -201,6 +202,8 @@ public:
                 this->write_buffer_->quintic_polynomial_coeffs[j][i].a3 = coeffs(3);
                 this->write_buffer_->quintic_polynomial_coeffs[j][i].a4 = coeffs(4);
                 this->write_buffer_->quintic_polynomial_coeffs[j][i].a5 = coeffs(5);
+                // LOG_INFO("Quintic polynomial coefficients:{:.4f},{:.4f},{:.4f},{:.4f},{:.4f},{:.4f}",
+                //     coeffs(0), coeffs(1), coeffs(2), coeffs(3), coeffs(4), coeffs(5));
             }
         }
         this->write_buffer_->quintic_polynomial_ready.store(true, std::memory_order_release);
@@ -335,11 +338,14 @@ private:
             return err;
         }
 
-        double t1 = (query_time - buf->buffer.at(waypoint_begin_id).timestamp).count();
+        std::chrono::duration<double> elapsed_time = query_time - buf->buffer.at(waypoint_begin_id).timestamp;
+        double t1 = elapsed_time.count();
         double t2 = t1 * t1;
         double t3 = t1 * t2;
         double t4 = t1 * t3;
         double t5 = t1 * t4;
+
+        // LOG_INFO("Quintic polynomial ordered time:{:.4f},{:.4f},{:.4f},{:.4f},{:.4f}", t1, t2, t3, t4, t5);
 
         for ( int joint_id=0 ; joint_id<ArmModel::num_dof_ ; joint_id++ )
         {
