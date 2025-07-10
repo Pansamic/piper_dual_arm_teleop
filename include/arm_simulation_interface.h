@@ -28,9 +28,11 @@
 class ArmSimulationInterface final : public ArmInterface
 {
 public:
+    ArmSimulationInterface() = delete;
     ArmSimulationInterface(const char* mujoco_file_path);
-    ~ArmSimulationInterface();
+    ~ArmSimulationInterface() = default;
 
+    void stop();
     void setLeftJointControl(
         const Eigen::Vector<double,ArmModel::num_dof_>& joint_pos,
         const Eigen::Vector<double,ArmModel::num_dof_>& joint_vel,
@@ -50,14 +52,18 @@ public:
     const Eigen::Vector<double,ArmModel::num_dof_>& getRightJointAcceleration() override;
     const Eigen::Vector<double,ArmModel::num_dof_>& getRightJointTorque() override;
 private:
-    const double syncMisalign = 0.1;        // maximum mis-alignment before re-sync (simulation seconds)
-    const double simRefreshFraction = 0.7;  // fraction of refresh available for simulation
-    const int kErrorLength = 1024;          // load error string length
-    const double joint_kp_ = 10.0;
-    const double joint_kd_ = 0.8;
+    static constexpr double syncMisalign = 0.1;        // maximum mis-alignment before re-sync (simulation seconds)
+    static constexpr double simRefreshFraction = 0.7;  // fraction of refresh available for simulation
+    static constexpr int kErrorLength = 1024;          // load error string length
+    static constexpr double joint_kp_ = 3;
+    static constexpr double joint_kd_ = 0.25;
 
-    mjModel* m = nullptr; // MuJoCo model
-    mjData* d = nullptr; // MuJoCo data
+    std::mutex sim_mutex_;
+    std::condition_variable sim_ready_cv_;
+    bool sim_ready_ = false;
+
+    mjModel* m; // MuJoCo model
+    mjData* d; // MuJoCo data
 
     std::atomic<bool> running_;
 

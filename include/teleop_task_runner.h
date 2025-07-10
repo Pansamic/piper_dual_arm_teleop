@@ -20,7 +20,7 @@
 #include <msgs/whole_body_msg/whole_body_receiver.hpp>
 #include <msgs/whole_body_msg/whole_body_sender.hpp>
 #include <joint_state.h>
-#include <trajectory_buffer.h>
+#include <trajectory_buffer.hpp>
 #include <arm_model.h>
 #include <arm_controller.h>
 #include <arm_planner.h>
@@ -29,9 +29,11 @@
 class TeleopTaskRunner
 {
 public:
+    TeleopTaskRunner() = delete;
     TeleopTaskRunner(std::shared_ptr<ArmInterface> interface, size_t freq_plan, size_t freq_ctrl);
-    ~TeleopTaskRunner();
+    ~TeleopTaskRunner() = default;
     void run();
+    void stop();
 private:
     static const Eigen::Vector3d head_position_;
     static const Eigen::Quaterniond left_hand_orientation_offset_;
@@ -39,11 +41,12 @@ private:
     static const Eigen::Matrix4d left_arm_base_transform_;
     static const Eigen::Matrix4d right_arm_base_transform_;
 
-    std::atomic<bool> running_;
+    static std::atomic<bool> running_;
     size_t freq_plan_;
     size_t freq_ctrl_;
 
     asio::io_context io_context_;
+    std::thread io_context_thread_;
     CommChannel<ChannelMode::UDP, WholeBodySender, WholeBodyReceiver> channel_;
     MsgQueue send_mq_;
     MsgQueue recv_mq_;
@@ -75,13 +78,6 @@ private:
      * trajectories are stored in buffer. */
     const size_t traj_buf_size_ = 3;
 
-    /* This buffer stores the inverse kinematics joint state
-     * for planner. This buffer is assigned to planner object
-     * when planner is created and planner can access this buffer
-     * to get target joint state from task runner. */
-    // RingBuffer<JointState> left_arm_target_joint_state_buffer_;
-    // RingBuffer<JointState> right_arm_target_joint_state_buffer_;
-
     /* Trajectory is a sequence of joint states. This buffer is assigned to
      * planner object and controller object and they share this buffer 
      * because the planner will write trajectory joint states into this 
@@ -92,17 +88,35 @@ private:
     RingBuffer<JointState> left_arm_joint_state_history_; 
     RingBuffer<JointState> right_arm_joint_state_history_;
 
-    void scaleLeftHandPose(Eigen::Matrix4d& pose);
-    void scaleRightHandPose(Eigen::Matrix4d& pose);
     /**
-     * @brief Check joint position jitter, or 
+     * @brief Program termination signal handler.
      * 
-     * @param joint_pos 
-     * @return true 
-     * @return false 
+     * @param signum signal number.
+     */
+    static void handleSignal(int signum);
+    /**
+     * @brief Apply a scaler on position, add position offset and apply a orientation offset.
+     * 
+     * @param position Position of end effector, unit: m.
+     * @param orientation Orientation of end effector, represented in quaternion.
+     */
+    void scaleLeftHandPose(Eigen::Vector3d& position, Eigen::Quaterniond& orientation);
+    /**
+     * @brief Apply a scaler on position, add position offset and apply a orientation offset.
+     * 
+     * @param position Position of end effector, unit: m.
+     * @param orientation Orientation of end effector, represented in quaternion.
+     */
+    void scaleRightHandPose(Eigen::Vector3d& position, Eigen::Quaterniond& orientation);
+    /**
+     * @brief Check joint position jitter or inaccessible joint configuration.
+     * 
+     * @param joint_pos Joint position.
+     * @return true Joint position is valid.
+     * @return false Joint position is invalid.
      */
     bool checkInvalidJointPosition(const Eigen::Vector<double,ArmModel::num_dof_>& joint_pos);
-    
+
     /**
      * @brief Compute joint velocity with Sacvitzky-Golay filter from the derivative
      * of joint position history.
@@ -113,7 +127,7 @@ private:
      * @param joint_acc Joint Acceleration result.
      */
     void computeJointVelocityAndAcceleration(
-        const RingBuffer<JointState>& history,
+        RingBuffer<JointState>& history,
         const Eigen::Vector<double, ArmModel::num_dof_>& joint_pos,
         Eigen::Vector<double, ArmModel::num_dof_>& joint_vel,
         Eigen::Vector<double, ArmModel::num_dof_>& joint_acc);

@@ -18,12 +18,14 @@ template <class RingBufferType, bool IsConst = false, bool IsReverse = false>
 class RingIterator {
 public:
   using iterator_category = std::forward_iterator_tag;
-  using value_type        = RingBufferType::BufferElement;
+  using value_type        = typename RingBufferType::BufferElement;
   using difference_type   = std::ptrdiff_t;
   using reference         = std::conditional_t<IsConst, const value_type&, value_type&>;
   using pointer           = std::conditional_t<IsConst, const value_type*, value_type*>;
 
-  RingIterator(RingBufferType* owner, size_t pos, size_t count)
+  using RingBufferPtr = std::conditional_t<IsConst, const RingBufferType*, RingBufferType*>;
+
+  RingIterator(RingBufferPtr owner, size_t pos, size_t count)
       : owner_(owner), pos_(pos), count_(count) {}
 
   reference operator*() const { return owner_->data()[pos_]; }
@@ -45,7 +47,7 @@ public:
   bool operator!=(const RingIterator& other) const { return !(*this == other); }
 
 private:
-  RingBufferType* owner_;
+  RingBufferPtr owner_;
   size_t pos_;
   size_t count_;
 };

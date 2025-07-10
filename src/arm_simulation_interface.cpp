@@ -19,30 +19,42 @@
 
 ArmSimulationInterface::ArmSimulationInterface(const char* mujoco_file_path)
 {
-    mjvCamera cam;
-    mjv_defaultCamera(&cam);
+    this->render_thread_ = std::thread([this]() {
+        mjvCamera cam;
+        mjv_defaultCamera(&cam);
 
-    mjvOption opt;
-    mjv_defaultOption(&opt);
+        mjvOption opt;
+        mjv_defaultOption(&opt);
 
-    mjvPerturb pert;
-    mjv_defaultPerturb(&pert);
+        mjvPerturb pert;
+        mjv_defaultPerturb(&pert);
 
-    // simulate object encapsulates the UI
-    this->sim_ = std::make_unique<mujoco::Simulate>(
-        std::make_unique<mujoco::GlfwAdapter>(),
-        &cam, &opt, &pert, /* is_passive = */ false
-    );
+        {
+            std::lock_guard<std::mutex> lock(this->sim_mutex_);
+            this->sim_ = std::make_unique<mujoco::Simulate>(
+                std::make_unique<mujoco::GlfwAdapter>(),
+                &cam, &opt, &pert, false
+            );
+            this->sim_ready_ = true;
+        }
 
-    // start physics thread
-    std::thread physicsthreadhandle(&ArmSimulationInterface::threadPhysics, this, mujoco_file_path);
+        this->sim_ready_cv_.notify_one();
 
-    // start simulation UI loop (blocking call)
-    std::thread([this](){this->sim_->RenderLoop();});
+        this->sim_->RenderLoop();
+    });
+
+    // Wait until sim_ is ready
+    {
+        std::unique_lock<std::mutex> lock(this->sim_mutex_);
+        this->sim_ready_cv_.wait(lock, [this] { return this->sim_ready_; });
+    }
+
+    this->physics_thread_ = std::thread(&ArmSimulationInterface::threadPhysics, this, mujoco_file_path);
 }
 
-ArmSimulationInterface::~ArmSimulationInterface()
+void ArmSimulationInterface::stop()
 {
+    this->sim_->exitrequest.store(1);
     this->render_thread_.join();
     this->physics_thread_.join();
 }
@@ -93,6 +105,12 @@ const Eigen::Vector<double,ArmModel::num_dof_>& ArmSimulationInterface::getLeftJ
     return this->left_arm_target_state_.joint_vel;
 }
 
+const Eigen::Vector<double,ArmModel::num_dof_>& ArmSimulationInterface::getLeftJointAcceleration()
+{
+    std::lock_guard<std::mutex> lock(this->left_arm_mutex_);
+    return this->left_arm_target_state_.joint_acc;
+}
+
 const Eigen::Vector<double,ArmModel::num_dof_>& ArmSimulationInterface::getLeftJointTorque()
 {
     std::lock_guard<std::mutex> lock(this->left_arm_mutex_);
@@ -127,16 +145,41 @@ void ArmSimulationInterface::setJointPDControl()
 {
     Eigen::Vector<double, ArmModel::num_dof_> left_control =
         this->joint_kp_ * (this->left_arm_target_state_.joint_pos - this->left_arm_actual_state_.joint_pos) + 
-        this->joint_kd_ * (this->left_arm_target_state_.joint_vel - this->left_arm_actual_state_.joint_vel) + this->left_arm_target_state_.joint_torq;
+        this->joint_kd_ * (this->left_arm_target_state_.joint_vel - this->left_arm_actual_state_.joint_vel) +
+        this->left_arm_target_state_.joint_torq;
     Eigen::Vector<double, ArmModel::num_dof_> right_control =
         this->joint_kp_ * (this->right_arm_target_state_.joint_pos - this->right_arm_actual_state_.joint_pos) + 
-        this->joint_kd_ * (this->right_arm_target_state_.joint_vel - this->right_arm_actual_state_.joint_vel) + this->right_arm_target_state_.joint_torq;
+        this->joint_kd_ * (this->right_arm_target_state_.joint_vel - this->right_arm_actual_state_.joint_vel) +
+        this->right_arm_target_state_.joint_torq;
 
     for ( int i=0 ; i<ArmModel::num_dof_ ; i++ )
     {
         this->d->ctrl[i] = left_control[i];
         this->d->ctrl[i+ArmModel::num_dof_+1] = right_control[i]; // +1 for left gripper joint
     }
+    LOG_DEBUG("Left arm target joint position:{:.4f},{:.4f},{:.4f},{:.4f},{:.4f},{:.4f}",
+        this->left_arm_target_state_.joint_pos(0),this->left_arm_target_state_.joint_pos(1),this->left_arm_target_state_.joint_pos(2),
+        this->left_arm_target_state_.joint_pos(3),this->left_arm_target_state_.joint_pos(4),this->left_arm_target_state_.joint_pos(5));
+    LOG_DEBUG("Left arm actual joint position:{:.4f},{:.4f},{:.4f},{:.4f},{:.4f},{:.4f}",
+        this->left_arm_actual_state_.joint_pos(0),this->left_arm_actual_state_.joint_pos(1),this->left_arm_actual_state_.joint_pos(2),
+        this->left_arm_actual_state_.joint_pos(3),this->left_arm_actual_state_.joint_pos(4),this->left_arm_actual_state_.joint_pos(5));
+    LOG_DEBUG("Left arm feedforward torque:{:.4f},{:.4f},{:.4f},{:.4f},{:.4f},{:.4f}",
+        this->left_arm_target_state_.joint_torq(0),this->left_arm_target_state_.joint_torq(1),this->left_arm_target_state_.joint_torq(2),
+        this->left_arm_target_state_.joint_torq(3),this->left_arm_target_state_.joint_torq(4),this->left_arm_target_state_.joint_torq(5));
+    LOG_DEBUG("Mujoco set left arm joint torque:{:.4f},{:.4f},{:.4f},{:.4f},{:.4f},{:.4f}",
+        left_control(0),left_control(1),left_control(2),left_control(3),left_control(4),left_control(5));
+
+    LOG_DEBUG("Right arm target joint position:{:.4f},{:.4f},{:.4f},{:.4f},{:.4f},{:.4f}",
+        this->right_arm_target_state_.joint_pos(0),this->right_arm_target_state_.joint_pos(1),this->right_arm_target_state_.joint_pos(2),
+        this->right_arm_target_state_.joint_pos(3),this->right_arm_target_state_.joint_pos(4),this->right_arm_target_state_.joint_pos(5));
+    LOG_DEBUG("Right arm actual joint position:{:.4f},{:.4f},{:.4f},{:.4f},{:.4f},{:.4f}",
+        this->right_arm_actual_state_.joint_pos(0),this->right_arm_actual_state_.joint_pos(1),this->right_arm_actual_state_.joint_pos(2),
+        this->right_arm_actual_state_.joint_pos(3),this->right_arm_actual_state_.joint_pos(4),this->right_arm_actual_state_.joint_pos(5));
+    LOG_DEBUG("Right arm feedforward torque:{:.4f},{:.4f},{:.4f},{:.4f},{:.4f},{:.4f}",
+        this->right_arm_target_state_.joint_torq(0),this->right_arm_target_state_.joint_torq(1),this->right_arm_target_state_.joint_torq(2),
+        this->right_arm_target_state_.joint_torq(3),this->right_arm_target_state_.joint_torq(4),this->right_arm_target_state_.joint_torq(5));
+    LOG_DEBUG("Mujoco set right arm joint torque:{:.4f},{:.4f},{:.4f},{:.4f},{:.4f},{:.4f}",
+        right_control(0),right_control(1),right_control(2),right_control(3),right_control(4),right_control(5));
 }
 
 const char* ArmSimulationInterface::diverged(int disableflags, const mjData* d) {
@@ -186,7 +229,7 @@ mjModel* ArmSimulationInterface::loadModel(const char* file)
     double load_seconds = std::chrono::duration<double>(load_interval).count();
 
     if (!mnew) {
-        LOG_ERROR(loadError);
+        LOG_ERROR("{}", loadError);
         mujoco::sample_util::strcpy_arr(this->sim_->load_error, loadError);
         return nullptr;
     }
@@ -316,11 +359,22 @@ void ArmSimulationInterface::physicsLoop()
                             this->right_arm_actual_state_.joint_pos(i) = this->d->qpos[i+ArmModel::num_dof_+1];  // +1 to skip left gripper joint
                             this->left_arm_actual_state_.joint_vel(i) = this->d->qvel[i];
                             this->right_arm_actual_state_.joint_vel(i) = this->d->qvel[i+ArmModel::num_dof_+1];  // +1 to skip left gripper joint
+                            this->left_arm_actual_state_.joint_acc(i) = this->d->qacc[i];
+                            this->right_arm_actual_state_.joint_acc(i) = this->d->qacc[i+ArmModel::num_dof_+1];  // +1 to skip left gripper joint
                             this->left_arm_actual_state_.joint_torq(i) = this->d->qfrc_actuator[i];
                             this->right_arm_actual_state_.joint_torq(i) = this->d->qfrc_actuator[i+ArmModel::num_dof_+1]; // +1 to skip left gripper joint
                         }
                         mj_step1(m, d);
-                        this->setJointPDControl();
+                        /* Apply joint level PD control logic to mujoco model.
+                         * This operation is only valid with "assets/mujoco_model/piper_dual_arm_torque.xml" */
+                        // this->setJointPDControl();
+                        /* Set position command to mujoco model.
+                         * This operation only valid with "assets/mujoco_model/piper_dual_arm_position.xml" */
+                        for ( std::size_t i=0 ; i<ArmModel::num_dof_ ; i++ )
+                        {
+                            this->d->ctrl[i] = this->left_arm_target_state_.joint_pos(i);
+                            this->d->ctrl[i+1+ArmModel::num_dof_] = this->right_arm_target_state_.joint_pos(i);
+                        }
                         mj_step2(m, d);
                         const char* message = diverged(m->opt.disableflags, d);
                         if (message)
@@ -364,11 +418,22 @@ void ArmSimulationInterface::physicsLoop()
                                 this->right_arm_actual_state_.joint_pos(i) = this->d->qpos[i+ArmModel::num_dof_+1];  // +1 to skip left gripper joint
                                 this->left_arm_actual_state_.joint_vel(i) = this->d->qvel[i];
                                 this->right_arm_actual_state_.joint_vel(i) = this->d->qvel[i+ArmModel::num_dof_+1];  // +1 to skip left gripper joint
+                                this->left_arm_actual_state_.joint_acc(i) = this->d->qacc[i];
+                                this->right_arm_actual_state_.joint_acc(i) = this->d->qacc[i+ArmModel::num_dof_+1];  // +1 to skip left gripper joint
                                 this->left_arm_actual_state_.joint_torq(i) = this->d->qfrc_actuator[i];
                                 this->right_arm_actual_state_.joint_torq(i) = this->d->qfrc_actuator[i+ArmModel::num_dof_+1]; // +1 to skip left gripper joint
                             }
                             mj_step1(m, d);
-                            this->setJointPDControl();
+                            /* Apply joint level PD control logic to mujoco model.
+                            * This operation is only valid with "assets/mujoco_model/piper_dual_arm_torque.xml" */
+                            // this->setJointPDControl();
+                            /* Set position command to mujoco model.
+                            * This operation only valid with "assets/mujoco_model/piper_dual_arm_position.xml" */
+                            for ( std::size_t i=0 ; i<ArmModel::num_dof_ ; i++ )
+                            {
+                                this->d->ctrl[i] = this->left_arm_target_state_.joint_pos(i);
+                                this->d->ctrl[i+1+ArmModel::num_dof_] = this->right_arm_target_state_.joint_pos(i);
+                            }
                             mj_step2(m, d);
                             const char* message = diverged(m->opt.disableflags, d);
                             if (message)
@@ -433,7 +498,7 @@ void ArmSimulationInterface::threadPhysics(const char* mujoco_file_path)
     {
       this->sim_->LoadMessageClear();
     }
-
+    
     this->physicsLoop();
 
     // delete everything we allocated

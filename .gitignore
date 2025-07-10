@@ -3,3 +3,4 @@
 /logs
 /slprj
 *.slxc
+MUJOCO_LOG.TXT

@@ -32,9 +32,9 @@ ArmController::ArmController(
 
 }
 
-ArmController::~ArmController()
+void ArmController::stop()
 {
-    this->running_ = false;
+    this->running_.store(false, std::memory_order_release);
     if ( this->control_thread_.joinable() )
     {
         control_thread_.join();  // Ensure thread finishes before destruction
@@ -71,13 +71,15 @@ void ArmController::threadControl()
     };
 
     struct timespec wakeup_time = {0,0};
-    static const struct timespec cycletime = {0, 1000000000/this->freq_ctrl_};
+    static struct timespec cycletime = {0, static_cast<long int>(1000000000L/this->freq_ctrl_)};
     clock_gettime(CLOCK_MONOTONIC, &wakeup_time);
 
-    while(this->running_)
+    while( this->running_.load(std::memory_order_acquire) )
     {
         increase_time_spec(&wakeup_time, &cycletime);
         clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, &wakeup_time, NULL);
+        
+        // LOG_INFO("Controller time: {:d}", std::chrono::steady_clock::now().time_since_epoch().count());
 
         actual_joint_state.joint_pos = this->interface_->getLeftJointPosition();
         actual_joint_state.joint_vel = this->interface_->getLeftJointVelocity();
@@ -110,6 +112,5 @@ void ArmController::threadControl()
 
         target_joint_state = this->right_arm_trajectory_buffer_.interpolate(TrajectoryBuffer<>::QUINTIC_POLYNOMIAL, std::chrono::steady_clock::now());
         this->interface_->setRightJointControl(target_joint_state.joint_pos, target_joint_state.joint_vel, feedforward_torque);
-        
     }
 }

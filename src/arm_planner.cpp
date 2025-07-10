@@ -23,6 +23,15 @@ ArmPlanner::ArmPlanner(
 
 }
 
+void ArmPlanner::stop()
+{
+    this->running_.store(false, std::memory_order_release);
+    if ( this->plan_thread_.joinable() )
+    {
+        plan_thread_.join();  // Ensure thread finishes before destruction
+    }
+}
+
 void ArmPlanner::setLeftArmTargetJointState(const JointState& joint_state)
 {
     std::lock_guard<std::mutex> lock(this->left_arm_target_joint_state_mtx_);
@@ -35,16 +44,8 @@ void ArmPlanner::setRightArmTargetJointState(const JointState& joint_state)
     this->right_arm_target_joint_state_ = joint_state;
 }
 
-ArmPlanner::~ArmPlanner()
-{
-    this->running_.store(false, std::memory_order_release);
-    if ( this->plan_thread_.joinable() )
-    {
-        plan_thread_.join();  // Ensure thread finishes before destruction
-    }
-}
-
 void ArmPlanner::planDualArmLinear(
+    const std::chrono::steady_clock::time_point& start_timepoint,
     const JointState& left_arm_begin,
     const JointState& left_arm_end,
     const JointState& right_arm_begin,
@@ -63,41 +64,34 @@ void ArmPlanner::planDualArmLinear(
     waypoint.state.joint_acc.setZero();
     waypoint.state.joint_torq.setZero();
 
-    waypoint.timestamp = std::chrono::steady_clock::now();
+    waypoint.timestamp = start_timepoint;
 
     // fill internal_waypoints_[0..N-1]
     for ( size_t i = 0; i < this->num_plan_waypoint_; ++i )
     {
         double alpha = double(i+1) / (this->num_plan_waypoint_ + 1);
 
-        // waypoint.timestamp += std::chrono::duration_cast<std::chrono::steady_clock::duration>()
-        waypoint.timestamp += plan_duration;
-
         /* Compute left arm waypoint. */
         waypoint.state.joint_pos = left_arm_begin.joint_pos + alpha * (left_arm_end.joint_pos - left_arm_begin.joint_pos);
 
         /* Push waypoint to left arm trajectory buffer. */
-        try
-        {
-            this->left_arm_trajectory_buffer_.push(waypoint);
-        }
-        catch(const std::exception& e)
-        {
-            LOG_WARN(e.what());
-        }
+        this->left_arm_trajectory_buffer_.push(waypoint);
+
+        LOG_DEBUG("Left arm linear plan waypoint({:d}):{:.4f},{:.4f},{:.4f},{:.4f},{:.4f},{:.4f}",i,
+            waypoint.state.joint_pos(0),waypoint.state.joint_pos(1),waypoint.state.joint_pos(2),
+            waypoint.state.joint_pos(3),waypoint.state.joint_pos(4),waypoint.state.joint_pos(5));
 
         /* Compute right arm waypoint. */
         waypoint.state.joint_pos = right_arm_begin.joint_pos + alpha * (right_arm_end.joint_pos - right_arm_begin.joint_pos);
 
         /* Push waypoint to right arm trajectory buffer. */
-        try
-        {
-            this->right_arm_trajectory_buffer_.push(waypoint);
-        }
-        catch(const std::exception& e)
-        {
-            LOG_WARN(e.what());
-        }
+        this->right_arm_trajectory_buffer_.push(waypoint);
+
+        LOG_DEBUG("Right arm linear plan waypoint({:d}):{:.4f},{:.4f},{:.4f},{:.4f},{:.4f},{:.4f}",i,
+            waypoint.state.joint_pos(0),waypoint.state.joint_pos(1),waypoint.state.joint_pos(2),
+            waypoint.state.joint_pos(3),waypoint.state.joint_pos(4),waypoint.state.joint_pos(5));
+        
+        waypoint.timestamp += plan_duration;
     }
     /* Pre-compute the coefficients of quintic polynomial to reduce 
      * the computation resource comsumption due to the high frequency of
@@ -129,16 +123,19 @@ void ArmPlanner::threadPlan()
     static struct timespec cycletime = {0, static_cast<long>(this->dt_plan_ * 1e9)};
     clock_gettime(CLOCK_MONOTONIC, &wakeup_time);
 
-    while ( this->running_ )
+    while ( this->running_.load(std::memory_order_acquire) )
     {
         increase_time_spec(&wakeup_time, &cycletime);
         clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, &wakeup_time, NULL);
+
+        // LOG_INFO("Planner time: {:d}", std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now().time_since_epoch()).count());
 
         std::lock_guard<std::mutex> left_arm_lock(this->left_arm_target_joint_state_mtx_);
         std::lock_guard<std::mutex> right_arm_lock(this->right_arm_target_joint_state_mtx_);
 
         /* Use linear plan to generate internal waypoints */
         this->planDualArmLinear(
+            std::chrono::steady_clock::now(),
             this->left_arm_last_target_joint_state_, this->left_arm_target_joint_state_,
             this->right_arm_last_target_joint_state_, this->right_arm_target_joint_state_);
 

@@ -13,8 +13,7 @@
 
 #include <condition_variable>
 #include <joint_state.h>
-#include <trajectory_buffer.h>
-// #include <itc/backend/RingBuf.hpp>
+#include <trajectory_buffer.hpp>
 #include <arm_model.h>
 
 class ArmPlanner
@@ -36,7 +35,8 @@ public:
         TrajectoryBuffer<num_plan_waypoint_>& left_arm_trajectory_buffer,
         TrajectoryBuffer<num_plan_waypoint_>& right_arm_trajectory_buffer,
         size_t freq_plan);
-    ~ArmPlanner();
+    ~ArmPlanner() = default;
+    void stop();
     void setLeftArmTargetJointState(const JointState& joint_state);
     void setRightArmTargetJointState(const JointState& joint_state);
 private:
@@ -105,6 +105,7 @@ private:
      * @param end end configuration of robotic arm.
      */
     void planDualArmLinear(
+        const std::chrono::steady_clock::time_point& start_timepoint,
         const JointState& left_arm_begin,
         const JointState& left_arm_end,
         const JointState& right_arm_begin,

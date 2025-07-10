@@ -8,7 +8,6 @@
  * @copyright Copyright (c) 2025
  * 
  */
-#include <termination.h>
 #include <teleop_task_runner.h>
 
 const Eigen::Vector3d TeleopTaskRunner::head_position_ = Eigen::Vector3d(0.325024,0,0.80246);
@@ -27,18 +26,20 @@ const Eigen::Matrix4d TeleopTaskRunner::right_arm_base_transform_ = (Eigen::Matr
     -1, 0,           0,           0.74065,
     0,  0,           0,           1).finished();
 
+std::atomic<bool> TeleopTaskRunner::running_{true};
+
 // left hand home position: 0.542092536439244, 0.500792536439244, 0.398868333963670
 // left hand home orientation: 0.000044497177102,0.382683431921232,-0.923879531439719,0.000018431334243
 // right hand home position: 0.542092536439244, -0.500792536439244, 0.398868333963670
 // right hand home orientation: 0.000044497177102, -0.382683431921232, -0.923879531439719, -0.000018431334243
 
 TeleopTaskRunner::TeleopTaskRunner(std::shared_ptr<ArmInterface> interface, size_t freq_plan, size_t freq_ctrl):
-    freq_plan_(freq_plan_), freq_ctrl_(freq_ctrl),
+    freq_plan_(freq_plan), freq_ctrl_(freq_ctrl),
     interface_(interface),
     left_hand_target_pos_(Eigen::Vector3d::Zero()),
     left_hand_target_orientation_(Eigen::Quaterniond::Identity()),
     left_hand_target_pose_(Eigen::Matrix4d::Identity()),
-    left_hand_actual_orientation_(Eigen::Matrix4d::Identity()),
+    left_hand_actual_orientation_(Eigen::Quaterniond::Identity()),
     left_gripper_control_(0),
     right_hand_target_pos_(Eigen::Vector3d::Zero()),
     right_hand_target_orientation_(Eigen::Quaterniond::Identity()),
@@ -47,7 +48,9 @@ TeleopTaskRunner::TeleopTaskRunner(std::shared_ptr<ArmInterface> interface, size
     right_gripper_control_(0),
     left_arm_joint_state_history_(32),
     right_arm_joint_state_history_(32),
-    channel_(this->io_context_, "192.168.1.105", 54321, "192.168.1.5", 12345),
+    left_arm_trajectory_buffer_(),
+    right_arm_trajectory_buffer_(),
+    channel_(this->io_context_, "192.168.1.108", 54321, "192.168.1.105", 12345),
     send_mq_(RingBuffer<whole_body_msg>{10}),
     recv_mq_(RingBuffer<whole_body_msg>{10})
 {
@@ -56,7 +59,7 @@ TeleopTaskRunner::TeleopTaskRunner(std::shared_ptr<ArmInterface> interface, size
     this->channel_.enable_sender();
     this->channel_.enable_receiver();
 
-    std::thread t([&]() { this->io_context_.run(); });
+    this->io_context_thread_ = std::thread([&]() { this->io_context_.run(); });
 
     this->left_arm_model_ = std::make_shared<ArmModel>(left_arm_base_transform_);
     this->right_arm_model_ = std::make_shared<ArmModel>(right_arm_base_transform_);
@@ -75,23 +78,20 @@ TeleopTaskRunner::TeleopTaskRunner(std::shared_ptr<ArmInterface> interface, size
         this->freq_ctrl_);
 }
 
-TeleopTaskRunner::~TeleopTaskRunner()
+void TeleopTaskRunner::stop()
 {
-    this->running_ = false;
+    this->running_.store(false, std::memory_order_release);
+    this->io_context_.stop();
+    this->io_context_thread_.join();
 }
 
 void TeleopTaskRunner::run()
 {
     whole_body_msg msg;
 
-    while ( this->running_ )
+    // while ( this->running_.load(std::memory_order_acquire) )
+    while ( this->running_.load(std::memory_order_acquire) )
     {
-        /* Check for program-wide stop flag. */
-        if ( TerminationHandler::stop_requested.load() == true )
-        {
-            this->running_.store(false, std::memory_order_release);
-            break;
-        }
         if ( !this->recv_mq_.dequeue(msg) )
         {
             /* Continue if message not received. */
@@ -114,17 +114,36 @@ void TeleopTaskRunner::run()
             this->left_hand_target_orientation_.x() = msg.left_hand_quat[1];
             this->left_hand_target_orientation_.y() = msg.left_hand_quat[2];
             this->left_hand_target_orientation_.z() = msg.left_hand_quat[3];
+
+            LOG_DEBUG("Original left hand target position:x={:.4f},y={:.4f},z={:.4f}.Orientation:x={:.4f},y={:.4f},z={:.4f},w={:.4f}.",
+                this->left_hand_target_pos_(0), this->left_hand_target_pos_(1), this->left_hand_target_pos_(2),
+                this->left_hand_target_orientation_.x(), this->left_hand_target_orientation_.y(),
+                this->left_hand_target_orientation_.z(), this->left_hand_target_orientation_.w());
+
+            this->scaleLeftHandPose(this->left_hand_target_pos_, this->left_hand_target_orientation_);
+            
             /* Construct transformation matrix from orientation and position */
             this->left_hand_target_pose_.block<3,3>(0,0) = this->left_hand_target_orientation_.toRotationMatrix();
             this->left_hand_target_pose_.block<3,1>(0,3) = this->left_hand_target_pos_;
             this->left_hand_target_pose_(3,3) = 1;
 
-            this->scaleLeftHandPose(this->left_hand_target_pose_);
+            LOG_DEBUG("Scaled left hand target position:x={:.4f},y={:.4f},z={:.4f}.Orientation:x={:.4f},y={:.4f},z={:.4f},w={:.4f}.",
+                this->left_hand_target_pos_(0), this->left_hand_target_pos_(1), this->left_hand_target_pos_(2),
+                this->left_hand_target_orientation_.x(), this->left_hand_target_orientation_.y(),
+                this->left_hand_target_orientation_.z(), this->left_hand_target_orientation_.w());
 
             /* Get least damped inverse kinematics */
-            Eigen::Vector<double,ArmModel::num_dof_> joint_pos = this->left_arm_model_->getDampedLeastSquareInverseKinematics(
-                0.1, Eigen::Vector<double,6>(0.05,0.05,0.05,0.1,0.1,0.1), 200, this->left_hand_target_pose_, this->interface_->getLeftJointPosition());
-            
+            Eigen::Vector<double,ArmModel::num_dof_> joint_pos;
+            try
+            {
+                joint_pos = this->left_arm_model_->getDampedLeastSquareInverseKinematics(
+                    0.1, Eigen::Vector<double,6>(0.05,0.05,0.05,0.1,0.1,0.1), 200, this->left_hand_target_pose_, this->interface_->getLeftJointPosition());
+            }
+            catch(const std::exception& e)
+            {
+                LOG_WARN(e.what());
+            }
+
             if ( this->checkInvalidJointPosition(joint_pos) )
             {
                 JointState joint_state;
@@ -149,16 +168,35 @@ void TeleopTaskRunner::run()
             this->right_hand_target_orientation_.x() = msg.right_hand_quat[1];
             this->right_hand_target_orientation_.y() = msg.right_hand_quat[2];
             this->right_hand_target_orientation_.z() = msg.right_hand_quat[3];
+
+            LOG_DEBUG("Original right hand target position:x={:.4f},y={:.4f},z={:.4f}.Orientation:x={:.4f},y={:.4f},z={:.4f},w={:.4f}.",
+                this->right_hand_target_pos_(0), this->right_hand_target_pos_(1), this->right_hand_target_pos_(2),
+                this->right_hand_target_orientation_.x(), this->right_hand_target_orientation_.y(),
+                this->right_hand_target_orientation_.z(), this->right_hand_target_orientation_.w());
+
+            this->scaleRightHandPose(this->right_hand_target_pos_, this->right_hand_target_orientation_);
+
             /* Construct transformation matrix from orientation and position */
             this->right_hand_target_pose_.block<3,3>(0,0) = this->right_hand_target_orientation_.toRotationMatrix();
             this->right_hand_target_pose_.block<3,1>(0,3) = this->right_hand_target_pos_;
             this->right_hand_target_pose_(3,3) = 1;
 
-            this->scaleRightHandPose(this->right_hand_target_pose_);
+            LOG_DEBUG("Scaled right hand target position:x={:.4f},y={:.4f},z={:.4f}.Orientation:x={:.4f},y={:.4f},z={:.4f},w={:.4f}.",
+                this->right_hand_target_pos_(0), this->right_hand_target_pos_(1), this->right_hand_target_pos_(2),
+                this->right_hand_target_orientation_.x(), this->right_hand_target_orientation_.y(),
+                this->right_hand_target_orientation_.z(), this->right_hand_target_orientation_.w());
 
             /* Get least damped inverse kinematics */
-            Eigen::Vector<double,ArmModel::num_dof_> joint_pos = this->right_arm_model_->getDampedLeastSquareInverseKinematics(
-                0.1, Eigen::Vector<double,6>(0.05,0.05,0.05,0.1,0.1,0.1), 200, this->right_hand_target_pose_, this->interface_->getRightJointPosition());
+            Eigen::Vector<double,ArmModel::num_dof_> joint_pos;
+            try
+            {
+                joint_pos = this->right_arm_model_->getDampedLeastSquareInverseKinematics(
+                    0.1, Eigen::Vector<double,6>(0.05,0.05,0.05,0.1,0.1,0.1), 200, this->right_hand_target_pose_, this->interface_->getRightJointPosition());
+            }
+            catch(const std::exception& e)
+            {
+                LOG_WARN(e.what());
+            }
 
             if ( this->checkInvalidJointPosition(joint_pos) )
             {
@@ -175,26 +213,32 @@ void TeleopTaskRunner::run()
     }
 }
 
-void TeleopTaskRunner::scaleLeftHandPose(Eigen::Matrix4d& pose)
+void TeleopTaskRunner::handleSignal(int signum)
 {
-    static const Eigen::Matrix3d left_hand_orientation_offset_rotm = this->left_hand_orientation_offset_.toRotationMatrix();
-    /* Scale the end effector position. */
-    pose.block<3,1>(0,3) *= 1.3;
-    /* Add position offset because VR remote controller position is based on headset,
-     * so the base position should be converted to the arm model base. */
-    pose.block<3,1>(0,3) += this->head_position_;
-    pose.block<3,3>(0,0) *= left_hand_orientation_offset_rotm;
+    if ( signum == SIGTERM )
+    {
+        running_.store(false, std::memory_order_release);
+    }
 }
 
-void TeleopTaskRunner::scaleRightHandPose(Eigen::Matrix4d& pose)
+void TeleopTaskRunner::scaleLeftHandPose(Eigen::Vector3d& position, Eigen::Quaterniond& orientation)
 {
-    static const Eigen::Matrix3d right_hand_orientation_offset_rotm = this->right_hand_orientation_offset_.toRotationMatrix();
     /* Scale the end effector position. */
-    pose.block<3,1>(0,3) *= 1.3;
+    position *= 1.3;
     /* Add position offset because VR remote controller position is based on headset,
      * so the base position should be converted to the arm model base. */
-    pose.block<3,1>(0,3) += this->head_position_;
-    pose.block<3,3>(0,0) *= right_hand_orientation_offset_rotm;
+    position += this->head_position_;
+    orientation = orientation * this->left_hand_orientation_offset_;
+}
+
+void TeleopTaskRunner::scaleRightHandPose(Eigen::Vector3d& position, Eigen::Quaterniond& orientation)
+{
+    /* Scale the end effector position. */
+    position *= 1.3;
+    /* Add position offset because VR remote controller position is based on headset,
+     * so the base position should be converted to the arm model base. */
+    position += this->head_position_;
+    orientation = orientation * this->left_hand_orientation_offset_;
 }
 
 bool TeleopTaskRunner::checkInvalidJointPosition(const Eigen::Vector<double,ArmModel::num_dof_>& joint_pos)
@@ -207,7 +251,7 @@ bool TeleopTaskRunner::checkInvalidJointPosition(const Eigen::Vector<double,ArmM
 }
 
 void TeleopTaskRunner::computeJointVelocityAndAcceleration(
-    const RingBuffer<JointState>& history,
+    RingBuffer<JointState>& history,
     const Eigen::Vector<double, ArmModel::num_dof_>& joint_pos,
     Eigen::Vector<double, ArmModel::num_dof_>& joint_vel,
     Eigen::Vector<double, ArmModel::num_dof_>& joint_acc)
@@ -220,8 +264,8 @@ void TeleopTaskRunner::computeJointVelocityAndAcceleration(
     std::array<Eigen::Vector<double, dof>, window_size> pos_buffer;
     int valid_count = 0;
 
-    auto it = history.crbegin();
-    for (int i = 0; i < window_size && it != history.crend(); ++i, ++it)
+    auto it = history.begin();
+    for (int i = 0; i < window_size && it != history.end(); ++i, ++it)
     {
         pos_buffer[i] = it->joint_pos;
         valid_count++;

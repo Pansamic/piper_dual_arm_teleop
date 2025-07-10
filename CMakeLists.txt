@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.8)
+cmake_minimum_required(VERSION 3.10)
 
 cmake_policy(SET CMP0072 NEW)
 
@@ -20,7 +20,6 @@ add_executable(deploy
     src/arm_planner.cpp
     src/deploy.cpp
     src/teleop_task_runner.cpp
-    src/trajectory_buffer.cpp
 )
 target_include_directories(deploy PRIVATE
     include
@@ -45,7 +44,6 @@ if(BUILD_TESTING)
         src/arm_simulation_interface.cpp
         src/simulate.cpp
         src/teleop_task_runner.cpp
-        src/trajectory_buffer.cpp
         third_party/mujoco-3.3.2-linux-x86_64/simulate/glfw_adapter.cc
         third_party/mujoco-3.3.2-linux-x86_64/simulate/glfw_dispatch.cc
         third_party/mujoco-3.3.2-linux-x86_64/simulate/platform_ui_adapter.cc

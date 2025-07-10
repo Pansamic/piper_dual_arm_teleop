@@ -17,7 +17,7 @@
 class TerminationHandler
 {
 public:
-    static std::atomic<bool> stop_requested;
+    inline static std::atomic<bool> stop_requested;
 
     static void signalHandler(int signal)
     {

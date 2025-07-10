@@ -29,14 +29,14 @@ public:
         const Eigen::Vector<double,ArmModel::num_dof_>& joint_vel,
         const Eigen::Vector<double,ArmModel::num_dof_>& joint_feedforward_torque) = 0;
     virtual void setRightGripperControl(const double& position, const double& torque) = 0;
-    virtual const Eigen::Vector<double,ArmModel::num_dof_>& getLeftJointPosition();
-    virtual const Eigen::Vector<double,ArmModel::num_dof_>& getLeftJointVelocity();
-    virtual const Eigen::Vector<double,ArmModel::num_dof_>& getLeftJointAcceleration();
-    virtual const Eigen::Vector<double,ArmModel::num_dof_>& getLeftJointTorque();
-    virtual const Eigen::Vector<double,ArmModel::num_dof_>& getRightJointPosition();
-    virtual const Eigen::Vector<double,ArmModel::num_dof_>& getRightJointVelocity();
-    virtual const Eigen::Vector<double,ArmModel::num_dof_>& getRightJointAcceleration();
-    virtual const Eigen::Vector<double,ArmModel::num_dof_>& getRightJointTorque();
+    virtual const Eigen::Vector<double,ArmModel::num_dof_>& getLeftJointPosition() = 0;
+    virtual const Eigen::Vector<double,ArmModel::num_dof_>& getLeftJointVelocity() = 0;
+    virtual const Eigen::Vector<double,ArmModel::num_dof_>& getLeftJointAcceleration() = 0;
+    virtual const Eigen::Vector<double,ArmModel::num_dof_>& getLeftJointTorque() = 0;
+    virtual const Eigen::Vector<double,ArmModel::num_dof_>& getRightJointPosition() = 0;
+    virtual const Eigen::Vector<double,ArmModel::num_dof_>& getRightJointVelocity() = 0;
+    virtual const Eigen::Vector<double,ArmModel::num_dof_>& getRightJointAcceleration() = 0;
+    virtual const Eigen::Vector<double,ArmModel::num_dof_>& getRightJointTorque() = 0;
 };
 
 #endif // __ARM_INTERFACE_H__

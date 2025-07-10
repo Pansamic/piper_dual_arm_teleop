@@ -27,7 +27,8 @@ public:
         TrajectoryBuffer<ArmPlanner::num_plan_waypoint_>& left_arm_trajectory_buffer,
         TrajectoryBuffer<ArmPlanner::num_plan_waypoint_>& right_arm_trajectory_buffer,
         const size_t freq_ctrl);
-    ~ArmController();
+    ~ArmController() = default;
+    void stop();
 private:
 
     static const Eigen::Vector<double,ArmModel::num_dof_> joint_kp_;
