@@ -57,6 +57,7 @@ void ArmController::threadControl()
     Eigen::Vector<double,ArmModel::num_dof_> feedforward_torque;
     JointState target_joint_state;
     JointState actual_joint_state;
+    ErrorCode err = OK;
 
     auto increase_time_spec = [](struct timespec* time, const struct timespec* increasement)
     {
@@ -78,8 +79,6 @@ void ArmController::threadControl()
     {
         increase_time_spec(&wakeup_time, &cycletime);
         clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, &wakeup_time, NULL);
-        
-        // LOG_INFO("Controller time: {:d}", std::chrono::steady_clock::now().time_since_epoch().count());
 
         actual_joint_state.joint_pos = this->interface_->getLeftJointPosition();
         actual_joint_state.joint_vel = this->interface_->getLeftJointVelocity();
@@ -94,7 +93,25 @@ void ArmController::threadControl()
 
         feedforward_torque = generalized_mass_matrix * actual_joint_state.joint_acc + centrifugal_coriolis_matrix * actual_joint_state.joint_vel + gravity_compensate;
 
-        target_joint_state = this->left_arm_trajectory_buffer_.interpolate(TrajectoryBuffer<>::QUINTIC_POLYNOMIAL, std::chrono::steady_clock::now());
+        target_joint_state.joint_pos.setZero();
+        target_joint_state.joint_vel.setZero();
+        target_joint_state.joint_acc.setZero();
+        target_joint_state.joint_torq.setZero();
+        err = this->left_arm_trajectory_buffer_.interpolate(target_joint_state, TrajectoryBuffer<>::QUINTIC_POLYNOMIAL, std::chrono::steady_clock::now());
+        switch ( err )
+        {
+        case NotImplemented:
+            LOG_ERROR("Failed to interpolate: Method hasn't been implemented.");
+            break;
+        case InvalidData:
+            LOG_WARN("Failed to interpolate: Not enough trajectory points in trajectory buffer.");
+            break;
+        case InvalidArgument:
+            LOG_ERROR("Failed to interpolate: Method doesn't exist.");
+            break;
+        default:
+            break;
+        }
         this->interface_->setLeftJointControl(target_joint_state.joint_pos, target_joint_state.joint_vel, feedforward_torque);
 
         actual_joint_state.joint_pos = this->interface_->getRightJointPosition();
@@ -110,7 +127,25 @@ void ArmController::threadControl()
 
         feedforward_torque = generalized_mass_matrix * actual_joint_state.joint_acc + centrifugal_coriolis_matrix * actual_joint_state.joint_vel + gravity_compensate;
 
-        target_joint_state = this->right_arm_trajectory_buffer_.interpolate(TrajectoryBuffer<>::QUINTIC_POLYNOMIAL, std::chrono::steady_clock::now());
+        target_joint_state.joint_pos.setZero();
+        target_joint_state.joint_vel.setZero();
+        target_joint_state.joint_acc.setZero();
+        target_joint_state.joint_torq.setZero();
+        err = this->right_arm_trajectory_buffer_.interpolate(target_joint_state, TrajectoryBuffer<>::QUINTIC_POLYNOMIAL, std::chrono::steady_clock::now());
+        switch ( err )
+        {
+        case NotImplemented:
+            LOG_ERROR("Failed to interpolate: Method hasn't been implemented.");
+            break;
+        case InvalidData:
+            LOG_WARN("Failed to interpolate: Not enough trajectory points in trajectory buffer.");
+            break;
+        case InvalidArgument:
+            LOG_ERROR("Failed to interpolate: Method doesn't exist.");
+            break;
+        default:
+            break;
+        }
         this->interface_->setRightJointControl(target_joint_state.joint_pos, target_joint_state.joint_vel, feedforward_torque);
     }
 }

@@ -15,6 +15,7 @@
 #include <vector>
 #include <chrono>
 #include <log.hpp>
+#include <error_codes.h>
 #include <joint_state.h>
 
 template <std::size_t Capacity = 10>
@@ -27,13 +28,6 @@ public:
     {
         TimePoint timestamp;
         JointState state;
-    };
-
-    struct StaticMemoryBuffer
-    {
-        std::array<TrajectoryPoint, Capacity> buffer;
-        std::size_t size;
-        std::size_t head;
     };
 
     enum InterpolationType
@@ -53,8 +47,22 @@ public:
         double a5;
     };
 
+    struct StaticMemoryBuffer
+    {
+        std::array<TrajectoryPoint, Capacity> buffer;
+        std::size_t size;
+        std::size_t head;
+
+        /* A bool signal to determine whether the coefficients
+        * for new waypoints are computed or not. */
+        std::atomic<bool> quintic_polynomial_ready;
+
+        /* A set of quintic polynomial coefficients for each joint and each trajectory segment */
+        QuinticPolyCoeffs quintic_polynomial_coeffs[ArmModel::num_dof_][Capacity-1];
+        /* @todo Add B-Spline coefficients in this struct. */
+    };
+
     TrajectoryBuffer():
-        quintic_polynomial_coefficients_ready_(false),
         write_buffer_(&this->buffer_a_), read_buffer_(&this->buffer_b_)
     {
         this->buffer_a_.head = 0;
@@ -117,49 +125,30 @@ public:
      * @param query_time time of querying the target joint state.
      * @return JointState the target joint state at time point `query_time`.
      */
-    JointState interpolate(InterpolationType type, TimePoint query_time) const
+    ErrorCode interpolate(JointState& joint_state, InterpolationType type, TimePoint query_time) const
     {
-        JointState joint_state;
+        ErrorCode err = OK;
 
         switch (type)
         {
         case LINEAR:
-            try
-            {
-                joint_state = interpolateLinear(query_time);
-            }
-            catch(const std::exception& e)
-            {
-                LOG_WARN(e.what());
-            }
-            return joint_state;
+            err = interpolateLinear(joint_state, query_time);
+            break;
         case QUINTIC_POLYNOMIAL:
-            try
-            {
-                joint_state = interpolateQuinticPolynomial(query_time);
-            }
-            catch(const std::exception& e)
-            {
-                LOG_WARN(e.what());
-            }
-            return joint_state;
+            err = interpolateQuinticPolynomial(joint_state, query_time);
+            break;
         case B_SPLINE:
-            try
-            {
-                joint_state = interpolateBSpline(query_time);
-            }
-            catch(const std::exception& e)
-            {
-                LOG_WARN(e.what());
-            }
-            return joint_state;
+            err = interpolateBSpline(joint_state, query_time);
+            break;
         default:
-            throw std::invalid_argument("Unknown interpolation type");
+            err = InvalidArgument;
+            break;
         }
+        return err;
     };
     /**
      * @brief pre-compute coefficients of quintic polynomial interpolation
-     * using the waypoints in `buffer_`.
+     * using the waypoints in `write_buffer_`.
      * @note This method should be called after `push()` and before `commit()`
      * because this method operates on `this->write_buffer_`, not `this->read_buffer_`.
      */
@@ -206,15 +195,15 @@ public:
                     this->write_buffer_->buffer.at(i+1).state.joint_acc(j)
                 );
                 Eigen::Vector<double,6> coeffs = M_inv * V;
-                this->quintic_polynomial_coefficients_[j][i].a0 = coeffs(0);
-                this->quintic_polynomial_coefficients_[j][i].a1 = coeffs(1);
-                this->quintic_polynomial_coefficients_[j][i].a2 = coeffs(2);
-                this->quintic_polynomial_coefficients_[j][i].a3 = coeffs(3);
-                this->quintic_polynomial_coefficients_[j][i].a4 = coeffs(4);
-                this->quintic_polynomial_coefficients_[j][i].a5 = coeffs(5);
+                this->write_buffer_->quintic_polynomial_coeffs[j][i].a0 = coeffs(0);
+                this->write_buffer_->quintic_polynomial_coeffs[j][i].a1 = coeffs(1);
+                this->write_buffer_->quintic_polynomial_coeffs[j][i].a2 = coeffs(2);
+                this->write_buffer_->quintic_polynomial_coeffs[j][i].a3 = coeffs(3);
+                this->write_buffer_->quintic_polynomial_coeffs[j][i].a4 = coeffs(4);
+                this->write_buffer_->quintic_polynomial_coeffs[j][i].a5 = coeffs(5);
             }
         }
-        this->quintic_polynomial_coefficients_ready_.store(true, std::memory_order_release);
+        this->write_buffer_->quintic_polynomial_ready.store(true, std::memory_order_release);
     };
 private:
 
@@ -222,12 +211,6 @@ private:
     StaticMemoryBuffer buffer_b_;
     StaticMemoryBuffer* write_buffer_;
     std::atomic<StaticMemoryBuffer*> read_buffer_;
-
-    /* A bool signal to determine whether the coefficients
-     * for new waypoints are computed or not. */
-    std::atomic<bool> quintic_polynomial_coefficients_ready_;
-    /* A set of quintic polynomial coefficients for each joint and each trajectory segment */
-    QuinticPolyCoeffs quintic_polynomial_coefficients_[ArmModel::num_dof_][Capacity-1];
 
     std::size_t index(std::size_t i) const
     {
@@ -242,18 +225,25 @@ private:
     /**
      * @brief Perform linear interpolation on the trajectory waypoints.
      * 
+     * @param joint_state Reference of output joint state.
      * @param waypoints waypoint array, usually from planner function.
+     * @retval - OK Compute linear interpolation trajectory point successfully.
+     *         - InvalidData Not enough points in trajectory buffer for linear interpolation.
      * 
      * @note Write interpolated trajectory to `this->left_arm_trajectory_buffer_` or
      * `this->right_arm_trajectory_buffer_`
      */
-    JointState interpolateLinear(TimePoint query_time) const
+    ErrorCode interpolateLinear(JointState& joint_state, TimePoint query_time) const
     {
         StaticMemoryBuffer* buf = this->read_buffer_.load(std::memory_order_acquire);
 
+        ErrorCode err = OK;
+
         if (buf->size < 2)
         {
-            throw std::runtime_error("Not enough points for linear interpolation");
+            /* Not enough points for linear interpolation. */
+            err = InvalidData;
+            return err;
         }
 
         for (std::size_t i = 0; i < buf->size - 1; ++i)
@@ -266,43 +256,55 @@ private:
                 double alpha = std::chrono::duration<double>(query_time - p0.timestamp).count() /
                     std::chrono::duration<double>(p1.timestamp - p0.timestamp).count();
 
-                JointState result;
-                result.joint_pos  = (1.0 - alpha) * p0.state.joint_pos  + alpha * p1.state.joint_pos;
-                result.joint_vel  = (1.0 - alpha) * p0.state.joint_vel  + alpha * p1.state.joint_vel;
-                result.joint_acc  = (1.0 - alpha) * p0.state.joint_acc  + alpha * p1.state.joint_acc;
-                result.joint_torq = (1.0 - alpha) * p0.state.joint_torq + alpha * p1.state.joint_torq;
-                return result;
+                joint_state.joint_pos  = (1.0 - alpha) * p0.state.joint_pos  + alpha * p1.state.joint_pos;
+                joint_state.joint_vel  = (1.0 - alpha) * p0.state.joint_vel  + alpha * p1.state.joint_vel;
+                joint_state.joint_acc  = (1.0 - alpha) * p0.state.joint_acc  + alpha * p1.state.joint_acc;
+                joint_state.joint_torq = (1.0 - alpha) * p0.state.joint_torq + alpha * p1.state.joint_torq;
+
+                return err;
             }
         }
 
         if (query_time < at_index(0).timestamp)
         {
-            return at_index(0).state;
+            joint_state = at_index(0).state;
+            return err;
         }
 
-        return at_index(buf->size - 1).state;
+        joint_state = at_index(buf->size - 1).state;
+
+        return err;
     };
 
     /**
      * @brief Perform quintic polynomial interpolation on the trajectory waypoints.
      * 
+     * @param joint_state Reference of output joint state.
      * @param waypoints waypoint array, usually from planner function.
+     * @retval - OK Compute quintic polynomial interpolation trajectory point successfully.
+     *         - InvalidData Not enough points in trajectory buffer for quintic polynomial interpolation
+     *           or quintic polynomial coefficients haven't been pre-computed by planner.
      * 
      * @note Write interpolated trajectory to `this->left_arm_trajectory_buffer_` or
      * `this->right_arm_trajectory_buffer_`
      */
-    JointState interpolateQuinticPolynomial(TimePoint query_time) const
+    ErrorCode interpolateQuinticPolynomial(JointState& joint_state, TimePoint query_time) const
     {
         StaticMemoryBuffer* buf = this->read_buffer_.load(std::memory_order_acquire);
 
+        ErrorCode err = OK;
+
         if ( buf->size < 2 )
         {
-            throw std::runtime_error("Not enough points for quintic interpolation");
+            /* Not enough points for quintic polynomial interpolation. */
+            return InvalidData;
         }
 
-        if ( this->quintic_polynomial_coefficients_ready_ == false )
+        if ( buf->quintic_polynomial_ready.load(std::memory_order_acquire) == false )
         {
-            throw std::runtime_error("quintic polynomial coefficients are not pre-computed");
+            /* Quintic polynomial coefficients are not pre-computed. */
+            err = InvalidData;
+            return err;
         }
 
         size_t waypoint_begin_id = 0;
@@ -328,10 +330,10 @@ private:
                 std::chrono::duration_cast<std::chrono::nanoseconds>(query_time.time_since_epoch()).count(),
                 std::chrono::duration_cast<std::chrono::nanoseconds>(buf->buffer.at(0).timestamp.time_since_epoch()).count(),
                 std::chrono::duration_cast<std::chrono::nanoseconds>(buf->buffer.at(buf->size-1).timestamp.time_since_epoch()).count());
-            throw std::runtime_error("cannot find query timepoint in trajectory waypoints");
+            /* Cannot find query timepoint in trajectory waypoints */
+            err = InvalidData;
+            return err;
         }
-
-        JointState interpolation;
 
         double t1 = (query_time - buf->buffer.at(waypoint_begin_id).timestamp).count();
         double t2 = t1 * t1;
@@ -341,28 +343,28 @@ private:
 
         for ( int joint_id=0 ; joint_id<ArmModel::num_dof_ ; joint_id++ )
         {
-            const QuinticPolyCoeffs& coeffs = this->quintic_polynomial_coefficients_[joint_id][waypoint_begin_id];
-            interpolation.joint_pos(joint_id) =
+            const QuinticPolyCoeffs& coeffs = this->write_buffer_->quintic_polynomial_coeffs[joint_id][waypoint_begin_id];
+            joint_state.joint_pos(joint_id) =
                 coeffs.a0 +
                 coeffs.a1 * t1 +
                 coeffs.a2 * t2 +
                 coeffs.a3 * t3 +
                 coeffs.a4 * t4 +
                 coeffs.a5 * t5;
-            interpolation.joint_vel(joint_id) =
+            joint_state.joint_vel(joint_id) =
                 coeffs.a1 +
                 2 * coeffs.a2 * t1 +
                 3 * coeffs.a3 * t2 +
                 4 * coeffs.a4 * t3 +
                 5 * coeffs.a5 * t4;
-            interpolation.joint_acc(joint_id) =
+            joint_state.joint_acc(joint_id) =
                 2 * coeffs.a2 + 
                 6 * coeffs.a3 * t1 +
                 12 * coeffs.a4 * t2 +
                 20 * coeffs.a5 * t3;
         }
 
-        return interpolation;
+        return err;
     };
     /**
      * @brief Perform B-spline interpolation on the trajectory waypoints.
@@ -372,16 +374,21 @@ private:
      * @note Write interpolated trajectory to `this->left_arm_trajectory_buffer_` or
      * `this->right_arm_trajectory_buffer_`
      */
-    JointState interpolateBSpline(TimePoint query_time) const
+    ErrorCode interpolateBSpline(JointState& joint_state, TimePoint query_time) const
     {
         StaticMemoryBuffer* buf = this->read_buffer_.load(std::memory_order_acquire);
 
+        ErrorCode err = OK;
+
         if (buf->size < 4)
         {
-            throw std::runtime_error("Not enough points for B-spline interpolation");
+            /* Not enough points for B-spline interpolation. */
+            err = InvalidData;
+            return err;
         }
 
-        throw std::runtime_error("B-spline interpolation not yet implemented");
+        err = NotImplemented;
+        return err;
     };
 };
 #endif //__TRAJECTORY_BUFFER_H__

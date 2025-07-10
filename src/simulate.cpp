@@ -24,11 +24,17 @@ int main(int argv, char** argc)
     /* Register SIGINT handler. */
     TerminationHandler::setup();
     /* Create simulation interface. */
-    auto interface = std::make_shared<ArmSimulationInterface>(PROJECT_PATH"/assets/mujoco_model/piper_dual_arm_position.xml");
+    auto interface = std::make_shared<ArmSimulationInterface>();
+    interface->start(PROJECT_PATH"/assets/mujoco_model/piper_dual_arm_position.xml");
     /* Create task runner. */
     TeleopTaskRunner runner(interface, 20, 200);
-    /* Infinite loop. */
+    /* Blocking runner. */
     runner.run();
+    /* Stop task runner.
+     * Terminate interface, controller and planner. */
+    runner.stop();
+    /* Flush log data into file. */
     spdlog::drop_all();
+
     return 0;
 }

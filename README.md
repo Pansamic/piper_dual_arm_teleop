@@ -17,4 +17,3 @@ Dual AgileX Piper 6-axis manipulator.
 ## todo
 
 - [ ] Refactor arm model as rigid body tree.
-- [ ] sd

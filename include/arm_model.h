@@ -15,6 +15,7 @@
 #include <memory>
 #include <Eigen/Core>
 #include <Eigen/Geometry>
+#include <error_codes.h>
 
 typedef enum JointType
 {
@@ -33,10 +34,7 @@ public:
     static constexpr int num_dof_ = 6;
     static constexpr int num_link_ = 7;
 
-    /**
-     * @brief Construct a new Arm Control object.
-     * 
-     */
+    ArmModel() = delete;
     ArmModel(const Eigen::Matrix4d& base_transform):base_transform_(base_transform){};
     ~ArmModel(){};
 
@@ -160,15 +158,18 @@ public:
         const Eigen::Vector3d& target_pos,
         const Eigen::Quaterniond& target_orientation);
 
-    Eigen::Vector3d getShoulderJointPos(
+    ErrorCode getShoulderJointPos(
+        Eigen::Vector3d& joint_pos,
         const Eigen::Matrix4d &pose,
         const Eigen::Vector3d& ref_conf) const;
 
-    Eigen::Vector<double,6> getInverseKinematics(
+    ErrorCode getInverseKinematics(
+        Eigen::Vector<double,6>& joint_pos,
         const Eigen::Matrix4d& pose,
         const Eigen::Vector<double,6>& ref_conf) const;
 
-    Eigen::Vector<double,num_dof_> getDampedLeastSquareInverseKinematics(
+    ErrorCode getDampedLeastSquareInverseKinematics(
+        Eigen::Vector<double,num_dof_>& joint_pos,
         const double lambda,
         const Eigen::Vector<double,6> tolerance,
         const size_t max_iteration,

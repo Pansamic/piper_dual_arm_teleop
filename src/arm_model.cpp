@@ -678,10 +678,9 @@ Eigen::Vector<double,ArmModel::num_dof_> ArmModel::getDiffIKControl(
     return target_joint_pos;
 }
 
-Eigen::Vector3d ArmModel::getShoulderJointPos(const Eigen::Matrix4d &pose, const Eigen::Vector3d& ref_conf) const
+ErrorCode ArmModel::getShoulderJointPos(Eigen::Vector3d& shoulder_joint_pos, const Eigen::Matrix4d &pose, const Eigen::Vector3d& ref_conf) const
 {
-    /* return value */
-    Eigen::Vector3d best_shoulder_joint_pos = Eigen::Vector3d(0.0, 0.0, 0.0);
+    ErrorCode err = OK;
 
     Eigen::Matrix<double, 3, 4> possible_joint_pos;
 
@@ -753,7 +752,9 @@ Eigen::Vector3d ArmModel::getShoulderJointPos(const Eigen::Matrix4d &pose, const
             }
             else
             {
-                throw std::runtime_error("no wrist position solution");
+                /* no wrist position solution. */
+                err = NoResult;
+                return err;
             }
         }
 
@@ -841,16 +842,18 @@ Eigen::Vector3d ArmModel::getShoulderJointPos(const Eigen::Matrix4d &pose, const
             }
         }
     }
-    best_shoulder_joint_pos = possible_joint_pos.col(best_id);
-    return best_shoulder_joint_pos;
+    shoulder_joint_pos = possible_joint_pos.col(best_id);
+
+    return err;
 }
 
-Eigen::Vector<double,6> ArmModel::getInverseKinematics(
+ErrorCode ArmModel::getInverseKinematics(
+    Eigen::Vector<double,ArmModel::num_dof_>& joint_pos,
     const Eigen::Matrix4d& pose,
     const Eigen::Vector<double,6>& ref_conf) const
 {
-    Eigen::Vector<double, 6> best_joint_pos(5, 5, 5, 5, 5, 5);
-    Eigen::Matrix<double, 6, 8> joint_pos;
+    Eigen::Matrix<double, 6, 8> joint_pos_list;
+
     int result_count = 0;
 
     double d1 = 0.123;
@@ -921,7 +924,8 @@ Eigen::Vector<double,6> ArmModel::getInverseKinematics(
             }
             else
             {
-                throw std::runtime_error("no wrist position solution");
+                /* no wrist position solution. */
+                return NoResult;
             }
         }
 
@@ -1010,7 +1014,7 @@ Eigen::Vector<double,6> ArmModel::getInverseKinematics(
 
             for (int k = 0; k < 2; ++k)
             {
-                joint_pos.col(result_count) << theta1(i),
+                joint_pos_list.col(result_count) << theta1(i),
                                                theta2(j) + 172.22 / 180 * M_PI,
                                                theta3(j) + 102.78 / 180 * M_PI,
                                                theta4(k),
@@ -1023,12 +1027,13 @@ Eigen::Vector<double,6> ArmModel::getInverseKinematics(
 
     int best_id = -1;
     double min_movement = std::numeric_limits<double>::max();
+
     for (int i = 0; i < result_count; ++i)
     {
         int greater = 1;
         for ( int j=0 ; j<num_dof_ ; j++ )
         {
-            if ( joint_pos(j,i) < joint_pos_limit_low_[j] )
+            if ( joint_pos_list(j,i) < joint_pos_limit_low_[j] )
             {
                 greater = 0;
             }
@@ -1036,14 +1041,14 @@ Eigen::Vector<double,6> ArmModel::getInverseKinematics(
         int less = 1;
         for ( int j=0 ; j<num_dof_ ; j++ )
         {
-            if ( joint_pos(j,i) > joint_pos_limit_high_[j] )
+            if ( joint_pos_list(j,i) > joint_pos_limit_high_[j] )
             {
                 less = 0;
             }
         }
         if (less && greater)
         {
-            double movement = (joint_pos.col(i) - ref_conf).squaredNorm();
+            double movement = (joint_pos_list.col(i) - ref_conf).squaredNorm();
             if (movement < min_movement)
             {
                 min_movement = movement;
@@ -1053,13 +1058,16 @@ Eigen::Vector<double,6> ArmModel::getInverseKinematics(
     }
     if ( best_id == -1 )
     {
-        throw std::runtime_error("inverse kinematics no solution");
+        return NoResult;
     }
-    best_joint_pos = joint_pos.col(best_id);
-    return best_joint_pos;
+
+    joint_pos = joint_pos_list.col(best_id);
+
+    return OK;
 }
 
-Eigen::Vector<double,ArmModel::num_dof_> ArmModel::getDampedLeastSquareInverseKinematics(
+ErrorCode ArmModel::getDampedLeastSquareInverseKinematics(
+    Eigen::Vector<double,ArmModel::num_dof_>& joint_pos, 
     const double lambda,
     const Eigen::Vector<double,6> tolerance,
     const size_t max_iteration,
@@ -1083,18 +1091,21 @@ Eigen::Vector<double,ArmModel::num_dof_> ArmModel::getDampedLeastSquareInverseKi
         return dls_pinv * dx;
     };
 
-    Eigen::Vector<double,num_dof_> best_joint_pos(5, 5, 5, 5, 5, 5);
+    ErrorCode err = OK;
     
-    best_joint_pos.setZero();
-    // best_joint_pos.block<3,1>(0,0) = possible_joint_pos.col(best_id);
-    try
+    Eigen::Vector<double,num_dof_> best_joint_pos = Eigen::Vector<double,num_dof_>::Zero();
+    Eigen::Vector<double,num_dof_> joint_pos_diff = Eigen::Vector<double,num_dof_>::Zero();
+    Eigen::Vector3d shoulder_joint_pos = Eigen::Vector3d::Zero();
+
+    err = getShoulderJointPos(shoulder_joint_pos, pose, ref_conf.block<3,1>(0,0));
+
+    if ( err == NoResult )
     {
-        best_joint_pos.block<3,1>(0,0) = getShoulderJointPos(pose, ref_conf.block<3,1>(0,0));
+        return err;
     }
-    catch(const std::runtime_error& e)
-    {
-        throw std::runtime_error(e.what());
-    }
+
+    best_joint_pos.block<3,1>(0,0) = shoulder_joint_pos;
+
     for ( size_t i=0 ; i<max_iteration ; i++ )
     {
         std::array<Eigen::Matrix4d,ArmModel::num_link_> link_transform;
@@ -1103,14 +1114,19 @@ Eigen::Vector<double,ArmModel::num_dof_> ArmModel::getDampedLeastSquareInverseKi
         this->getTransform(link_transform, link_com_transform, best_joint_pos);
         this->getLinkSpaceJacobian(link_jacobian, link_transform);
         Eigen::Vector<double,6> pose_diff = getPoseDiff(pose, link_transform[5]);
+
         /* Check if the pose difference is within the tolerance */
         if ( (pose_diff.array() < tolerance.array()).all() )
         {
-            return best_joint_pos;
+            joint_pos = best_joint_pos;
+            return OK;
         }
-        Eigen::Vector<double,num_dof_> joint_pos_diff = getDampedLeastSquares(link_jacobian[5], pose_diff, lambda);
+
+        joint_pos_diff = getDampedLeastSquares(link_jacobian[5], pose_diff, lambda);
 
         best_joint_pos += joint_pos_diff;
     }
-    return best_joint_pos;
+    joint_pos = best_joint_pos;
+
+    return err;
 }

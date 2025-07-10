@@ -19,6 +19,7 @@
 #include <msgs/whole_body_msg/whole_body_msg.h>
 #include <msgs/whole_body_msg/whole_body_receiver.hpp>
 #include <msgs/whole_body_msg/whole_body_sender.hpp>
+#include <error_codes.h>
 #include <joint_state.h>
 #include <trajectory_buffer.hpp>
 #include <arm_model.h>
@@ -41,7 +42,7 @@ private:
     static const Eigen::Matrix4d left_arm_base_transform_;
     static const Eigen::Matrix4d right_arm_base_transform_;
 
-    static std::atomic<bool> running_;
+    bool running_;
     size_t freq_plan_;
     size_t freq_ctrl_;
 
@@ -93,7 +94,7 @@ private:
      * 
      * @param signum signal number.
      */
-    static void handleSignal(int signum);
+    // static void handleSignal(int signum);
     /**
      * @brief Apply a scaler on position, add position offset and apply a orientation offset.
      * 
@@ -126,7 +127,7 @@ private:
      * @param joint_vel Joint velocity result.
      * @param joint_acc Joint Acceleration result.
      */
-    void computeJointVelocityAndAcceleration(
+    ErrorCode computeJointVelocityAndAcceleration(
         RingBuffer<JointState>& history,
         const Eigen::Vector<double, ArmModel::num_dof_>& joint_pos,
         Eigen::Vector<double, ArmModel::num_dof_>& joint_vel,

@@ -28,10 +28,10 @@
 class ArmSimulationInterface final : public ArmInterface
 {
 public:
-    ArmSimulationInterface() = delete;
-    ArmSimulationInterface(const char* mujoco_file_path);
+    ArmSimulationInterface() = default;
     ~ArmSimulationInterface() = default;
 
+    void start(const char* mujoco_file_path);
     void stop();
     void setLeftJointControl(
         const Eigen::Vector<double,ArmModel::num_dof_>& joint_pos,
@@ -61,6 +61,10 @@ private:
     std::mutex sim_mutex_;
     std::condition_variable sim_ready_cv_;
     bool sim_ready_ = false;
+
+    std::mutex model_mutex_;
+    std::condition_variable model_ready_cv_;
+    bool model_ready_ = false;
 
     mjModel* m; // MuJoCo model
     mjData* d; // MuJoCo data
