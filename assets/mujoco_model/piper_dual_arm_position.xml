@@ -28,22 +28,23 @@
     </body>
   </worldbody>
   <actuator>
-    <position name="left_arm_joint1" joint="left_arm_joint1" ctrllimited="true" ctrlrange="-2.618 2.168"/>
-    <position name="left_arm_joint2" joint="left_arm_joint2" ctrllimited="true" ctrlrange="0 3.14"/>
-    <position name="left_arm_joint3" joint="left_arm_joint3" ctrllimited="true" ctrlrange="-2.967 0"/>
-    <position name="left_arm_joint4" joint="left_arm_joint4" ctrllimited="true" ctrlrange="-1.745 1.745"/>
-    <position name="left_arm_joint5" joint="left_arm_joint5" ctrllimited="true" ctrlrange="-1.22 1.22"/>
-    <position name="left_arm_joint6" joint="left_arm_joint6" ctrllimited="true" ctrlrange="-2.0944 2.0944"/>
+    <position name="left_arm_joint1" joint="left_arm_joint1" kp="200" kv="10" ctrllimited="true" ctrlrange="-2.618 2.168"/>
+    <position name="left_arm_joint2" joint="left_arm_joint2" kp="200" kv="10" ctrllimited="true" ctrlrange="0 3.14"/>
+    <position name="left_arm_joint3" joint="left_arm_joint3" kp="200" kv="10" ctrllimited="true" ctrlrange="-2.967 0"/>
+    <position name="left_arm_joint4" joint="left_arm_joint4" kp="20" kv="1" ctrllimited="true" ctrlrange="-1.745 1.745"/>
+    <position name="left_arm_joint5" joint="left_arm_joint5" kp="20" kv="1" ctrllimited="true" ctrlrange="-1.22 1.22"/>
+    <position name="left_arm_joint6" joint="left_arm_joint6" kp="10" kv="0.5" ctrllimited="true" ctrlrange="-2.0944 2.0944"/>
     <position name="left_arm_joint7" joint="left_arm_joint7" kp="200" user="1" forcelimited="false"/>
     <position name="left_arm_joint8" joint="left_arm_joint8" kp="200" user="1" forcelimited="false"/>
 
-    <position name="right_arm_joint1" joint="right_arm_joint1" ctrllimited="true" ctrlrange="-2.618 2.168"/>
-    <position name="right_arm_joint2" joint="right_arm_joint2" ctrllimited="true" ctrlrange="0 3.14"/>
-    <position name="right_arm_joint3" joint="right_arm_joint3" ctrllimited="true" ctrlrange="-2.967 0"/>
-    <position name="right_arm_joint4" joint="right_arm_joint4" ctrllimited="true" ctrlrange="-1.745 1.745"/>
-    <position name="right_arm_joint5" joint="right_arm_joint5" ctrllimited="true" ctrlrange="-1.22 1.22"/>
-    <position name="right_arm_joint6" joint="right_arm_joint6" ctrllimited="true" ctrlrange="-2.0944 2.0944"/>
+    <position name="right_arm_joint1" joint="right_arm_joint1" kp="200" kv="10" user="1" ctrllimited="true" ctrlrange="-2.618 2.168"/>
+    <position name="right_arm_joint2" joint="right_arm_joint2" kp="200" kv="10" ctrllimited="true" ctrlrange="0 3.14"/>
+    <position name="right_arm_joint3" joint="right_arm_joint3" kp="200" kv="10" ctrllimited="true" ctrlrange="-2.967 0"/>
+    <position name="right_arm_joint4" joint="right_arm_joint4" kp="20" kv="1" ctrllimited="true" ctrlrange="-1.745 1.745"/>
+    <position name="right_arm_joint5" joint="right_arm_joint5" kp="20" kv="1" ctrllimited="true" ctrlrange="-1.22 1.22"/>
+    <position name="right_arm_joint6" joint="right_arm_joint6" kp="10" kv="0.5" ctrllimited="true" ctrlrange="-2.0944 2.0944"/>
     <position name="right_arm_joint7" joint="right_arm_joint7" kp="200" user="1" forcelimited="false"/>
     <position name="right_arm_joint8" joint="right_arm_joint8" kp="200" user="1" forcelimited="false"/>
+
   </actuator>
 </mujoco>
