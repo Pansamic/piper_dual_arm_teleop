@@ -17,20 +17,15 @@ const Eigen::Quaterniond TeleopTaskRunner::right_hand_orientation_offset_(
     Eigen::Quaterniond(Eigen::AngleAxisd(M_PI, Eigen::Vector3d::UnitZ())) *
     Eigen::Quaterniond(Eigen::AngleAxisd(-M_PI / 2.0, Eigen::Vector3d::UnitY())));
 const Eigen::Matrix4d TeleopTaskRunner::left_arm_base_transform_ = (Eigen::Matrix4d() << 
-    0, -0.707106781 ,  0.707106781 , 0.23805,
-    0,  0.707106781 ,  0.707106781 , 0.19675,
-    -1, 0           ,  0           , 0.74065,
-    0,  0           ,  0           , 1).finished();
+    0,  0,  1, 0.23805,
+   -1,  0,  0, 0.19675,
+    0, -1,  0, 0.74065,
+    0,  0,  0, 1).finished();
 const Eigen::Matrix4d TeleopTaskRunner::right_arm_base_transform_ = (Eigen::Matrix4d() <<
-    0,  0.707106781, 0.707106781, 0.23805,
-    0,  0.707106781,-0.707106781,-0.19675,
-    -1, 0,           0,           0.74065,
-    0,  0,           0,           1).finished();
-
-// left hand home position: 0.542092536439244, 0.500792536439244, 0.398868333963670
-// left hand home orientation: 0.000044497177102,0.382683431921232,-0.923879531439719,0.000018431334243
-// right hand home position: 0.542092536439244, -0.500792536439244, 0.398868333963670
-// right hand home orientation: 0.000044497177102, -0.382683431921232, -0.923879531439719, -0.000018431334243
+    0, 0, 1, 0.23805,
+    1, 0, 0,-0.19675,
+    0, 1, 0, 0.74065,
+    0, 0, 0, 1).finished();
 
 TeleopTaskRunner::TeleopTaskRunner(std::shared_ptr<ArmInterface> interface, size_t freq_plan, size_t freq_ctrl):
     freq_plan_(freq_plan), freq_ctrl_(freq_ctrl),
@@ -242,21 +237,21 @@ void TeleopTaskRunner::run()
 void TeleopTaskRunner::scaleLeftHandPose(Eigen::Vector3d& position, Eigen::Quaterniond& orientation)
 {
     /* Scale the end effector position. */
-    position *= 1.2;
+    position *= 1.0;
     /* Add position offset because VR remote controller position is based on headset,
      * so the base position should be converted to the arm model base. */
     position += this->head_position_;
-    orientation = orientation * this->left_hand_orientation_offset_;
+    // orientation = orientation * this->left_hand_orientation_offset_;
 }
 
 void TeleopTaskRunner::scaleRightHandPose(Eigen::Vector3d& position, Eigen::Quaterniond& orientation)
 {
     /* Scale the end effector position. */
-    position *= 1.2;
+    position *= 1.0;
     /* Add position offset because VR remote controller position is based on headset,
      * so the base position should be converted to the arm model base. */
     position += this->head_position_;
-    orientation = orientation * this->right_hand_orientation_offset_;
+    // orientation = orientation * this->right_hand_orientation_offset_;
 }
 
 bool TeleopTaskRunner::checkInvalidJointPosition(const Eigen::Vector<double,ArmModel::num_dof_>& joint_pos)
