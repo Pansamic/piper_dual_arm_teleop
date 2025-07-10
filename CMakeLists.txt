@@ -23,7 +23,7 @@ add_executable(deploy
 )
 target_include_directories(deploy PRIVATE
     include
-    third_party/asio-1.34.2/include
+    third_party/asio-1.12.2/include
     third_party/eigen-3.4.0
     third_party/spdlog-1.15.3/include
     third_party/inter-process-comm/itc
@@ -55,7 +55,7 @@ if(BUILD_TESTING)
     target_include_directories(simulate PRIVATE
         include
         third_party/spdlog-1.15.3/include
-        third_party/asio-1.34.2/include
+        third_party/asio-1.12.2/include
         third_party/eigen-3.4.0
         third_party/mujoco-3.3.2-linux-x86_64/simulate
         third_party/mujoco-3.3.2-linux-x86_64/include
