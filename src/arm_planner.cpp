@@ -93,15 +93,8 @@ void ArmPlanner::planDualArmLinear(
         
         waypoint.timestamp += plan_duration;
     }
-    /* Pre-compute the coefficients of quintic polynomial to reduce 
-     * the computation resource comsumption due to the high frequency of
-     * joint controller. */
-    this->left_arm_trajectory_buffer_.computeQuinticPolynomialCoefficients();
-
     /* Commit the pre-computation operation to swap the ping-pong buffer in the trajectory buffer. */
     this->left_arm_trajectory_buffer_.commit();
-
-    this->right_arm_trajectory_buffer_.computeQuinticPolynomialCoefficients();
     this->right_arm_trajectory_buffer_.commit();
 }
 

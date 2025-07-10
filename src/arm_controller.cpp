@@ -97,7 +97,7 @@ void ArmController::threadControl()
         target_joint_state.joint_vel.setZero();
         target_joint_state.joint_acc.setZero();
         target_joint_state.joint_torq.setZero();
-        err = this->left_arm_trajectory_buffer_.interpolate(target_joint_state, TrajectoryBuffer<>::QUINTIC_POLYNOMIAL, std::chrono::steady_clock::now());
+        err = this->left_arm_trajectory_buffer_.interpolate(target_joint_state, std::chrono::steady_clock::now());
         switch ( err )
         {
         case NotImplemented:
@@ -131,7 +131,7 @@ void ArmController::threadControl()
         target_joint_state.joint_vel.setZero();
         target_joint_state.joint_acc.setZero();
         target_joint_state.joint_torq.setZero();
-        err = this->right_arm_trajectory_buffer_.interpolate(target_joint_state, TrajectoryBuffer<>::QUINTIC_POLYNOMIAL, std::chrono::steady_clock::now());
+        err = this->right_arm_trajectory_buffer_.interpolate(target_joint_state, std::chrono::steady_clock::now());
         switch ( err )
         {
         case NotImplemented:
