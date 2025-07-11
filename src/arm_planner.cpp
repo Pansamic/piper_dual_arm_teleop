@@ -18,8 +18,8 @@ ArmPlanner::ArmPlanner(
     dt_plan_(1.0/static_cast<double>(freq_plan)),
     left_arm_trajectory_buffer_(left_arm_trajectory_buffer),
     right_arm_trajectory_buffer_(right_arm_trajectory_buffer),
-    left_arm_target_joint_pos_(-M_PI/2, 0, 0, 0, 0, 0),
-    right_arm_target_joint_pos_(M_PI/2, 0, 0, 0, 0, 0)
+    left_arm_target_joint_pos_(M_PI/2, 0, 0, 0, 0, 0),
+    right_arm_target_joint_pos_(-M_PI/2, 0, 0, 0, 0, 0)
 {
 }
 
