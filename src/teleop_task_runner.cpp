@@ -42,7 +42,7 @@ TeleopTaskRunner::TeleopTaskRunner(std::shared_ptr<ArmInterface> interface, size
     right_arm_joint_state_history_(32),
     left_arm_trajectory_buffer_(),
     right_arm_trajectory_buffer_(),
-    channel_(this->io_context_, "192.168.1.108", 54321, "192.168.1.105", 12345),
+    channel_(this->io_context_, "/workspace/tmp/arm", "/workspace/tmp/arm"),
     send_mq_(RingBuffer<whole_body_msg>{32}),
     recv_mq_(RingBuffer<whole_body_msg>{32})
 {
@@ -80,9 +80,11 @@ void TeleopTaskRunner::initialize()
 void TeleopTaskRunner::run()
 {
     whole_body_msg msg;
-    
+
     ErrorCode err;
-    
+
+    std::chrono::steady_clock::time_point report_time = std::chrono::steady_clock::now();
+
     this->running_ = true;
 
     while ( this->running_ )
@@ -210,6 +212,24 @@ void TeleopTaskRunner::run()
             this->planner_->setRightArmTargetJointPosition(this->right_arm_target_joint_pos_);
             this->right_arm_joint_state_history_.push(this->right_arm_target_joint_pos_);
         }
+        /* If reaches report time, send joint position */
+        if ( (std::chrono::steady_clock::now() - report_time) >= std::chrono::milliseconds(20) )
+        {
+            nav_state_msg nav_msg = {0};
+            Eigen::Vector<double,ArmModel::num_dof_> joint_pos;
+            joint_pos = this->interface_->getLeftJointPosition();
+            for ( int i=0 ; i<ArmModel::num_dof_ ; i++)
+            {
+                nav_msg.left_joints[i] = joint_pos(i);
+            }
+            joint_pos = this->interface_->getRightJointPosition();
+            for ( int i=0 ; i<ArmModel::num_dof_ ; i++)
+            {
+                nav_msg.right_joints[i] = joint_pos(i);
+            }
+            this->send_mq_.enqueue(nav_msg);
+            report_time += std::chrono::milliseconds(20);
+        }
     }
 }
 
@@ -255,46 +275,3 @@ bool TeleopTaskRunner::checkInvalidJointPosition(const Eigen::Vector<double,ArmM
     // }
     return true;
 }
-
-// ErrorCode TeleopTaskRunner::computeJointVelocityAndAcceleration(
-//     RingBuffer<JointState>& history,
-//     const Eigen::Vector<double, ArmModel::num_dof_>& joint_pos,
-//     Eigen::Vector<double, ArmModel::num_dof_>& joint_vel,
-//     Eigen::Vector<double, ArmModel::num_dof_>& joint_acc)
-// {
-//     constexpr int window_size = 5;
-//     constexpr int poly_deg = 2;
-//     constexpr int dof = ArmModel::num_dof_;
-//     static_assert(window_size >= poly_deg + 1, "Insufficient data points");
-
-//     ErrorCode err = OK;
-
-//     std::array<Eigen::Vector<double, dof>, window_size> pos_buffer;
-
-//     if (history.size() < window_size)
-//     {
-//         /* Insufficient history for velocity/acceleration estimation */
-//         err = InvalidData;
-//         return err;
-//     }
-
-//     constexpr double dt = 1.0 / 72.0;
-//     Eigen::Matrix<double, window_size, poly_deg + 1> A;
-//     Eigen::Matrix<double, window_size, dof> V;
-
-//     for (int i = 0; i < window_size; ++i)
-//     {
-//         double t = -dt * (window_size - 1 - i);
-//         A(i, 0) = 1.0;
-//         A(i, 1) = t;
-//         A(i, 2) = t * t;
-//         V.row(i) = pos_buffer[i];
-//     }
-
-//     // Fit polynomial coefficients: coeffs = (AᵗA)⁻¹ AᵗV
-//     Eigen::Matrix<double, poly_deg + 1, dof> coeffs = A.colPivHouseholderQr().solve(V);
-
-//     joint_vel = coeffs.row(1);          // First derivative at t = 0
-//     joint_acc = 2.0 * coeffs.row(2);    // Second derivative at t = 0
-//     return err;
-// }

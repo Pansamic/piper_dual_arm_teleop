@@ -19,6 +19,9 @@
 #include <msgs/whole_body_msg/whole_body_msg.h>
 #include <msgs/whole_body_msg/whole_body_receiver.hpp>
 #include <msgs/whole_body_msg/whole_body_sender.hpp>
+#include <msgs/nav_state_msg/nav_state_msg.h>
+#include <msgs/nav_state_msg/nav_state_receiver.hpp>
+#include <msgs/nav_state_msg/nav_state_sender.hpp>
 #include <error_codes.h>
 #include <joint_state.h>
 #include <trajectory_buffer.hpp>
@@ -50,7 +53,7 @@ private:
 
     asio::io_context io_context_;
     std::thread io_context_thread_;
-    CommChannel<ChannelMode::UDP, WholeBodySender, WholeBodyReceiver> channel_;
+    CommChannel<ChannelMode::Unix, NavStateSender, WholeBodyReceiver> channel_;
     MsgQueue send_mq_;
     MsgQueue recv_mq_;
 
@@ -117,21 +120,6 @@ private:
      * @return false Joint position is invalid.
      */
     bool checkInvalidJointPosition(const Eigen::Vector<double,ArmModel::num_dof_>& joint_pos);
-
-    /**
-     * @brief Compute joint velocity with Sacvitzky-Golay filter from the derivative
-     * of joint position history.
-     * 
-     * @param history Joint state history.
-     * @param joint_pos Latest joint position.
-     * @param joint_vel Joint velocity result.
-     * @param joint_acc Joint Acceleration result.
-     */
-    // ErrorCode computeJointVelocityAndAcceleration(
-    //     RingBuffer<JointState>& history,
-    //     const Eigen::Vector<double, ArmModel::num_dof_>& joint_pos,
-    //     Eigen::Vector<double, ArmModel::num_dof_>& joint_vel,
-    //     Eigen::Vector<double, ArmModel::num_dof_>& joint_acc);
 };
 
 #endif // __TELEOP_TASK_RUNNER_H__
