@@ -28,13 +28,10 @@ public:
         TrajectoryBuffer<ArmPlanner::num_plan_waypoint_>& right_arm_trajectory_buffer,
         const size_t freq_ctrl);
     ~ArmController() = default;
+    void start();
     void stop();
 private:
-
-    static const Eigen::Vector<double,ArmModel::num_dof_> joint_kp_;
-    static const Eigen::Vector<double,ArmModel::num_dof_> joint_kd_;
-
-    std::atomic<bool> running_;
+    bool running_;
 
     /* Arm Interface */
     std::shared_ptr<ArmInterface> interface_;

@@ -18,80 +18,100 @@ ArmPlanner::ArmPlanner(
     dt_plan_(1.0/static_cast<double>(freq_plan)),
     left_arm_trajectory_buffer_(left_arm_trajectory_buffer),
     right_arm_trajectory_buffer_(right_arm_trajectory_buffer),
-    plan_thread_(std::thread(&ArmPlanner::threadPlan, this)), running_(true)
+    left_arm_target_joint_pos_(-M_PI/2, 0, 0, 0, 0, 0),
+    right_arm_target_joint_pos_(M_PI/2, 0, 0, 0, 0, 0)
 {
+}
+
+void ArmPlanner::start()
+{
+    this->running_ = true;
+    this->plan_thread_ = std::thread(&ArmPlanner::threadPlan, this);
 
 }
 
 void ArmPlanner::stop()
 {
-    this->running_.store(false, std::memory_order_release);
+    this->running_ = false;
     if ( this->plan_thread_.joinable() )
     {
         plan_thread_.join();  // Ensure thread finishes before destruction
     }
 }
 
-void ArmPlanner::setLeftArmTargetJointState(const JointState& joint_state)
+void ArmPlanner::setLeftArmTargetJointPosition(const Eigen::Vector<double,ArmModel::num_dof_>& joint_pos)
 {
-    std::lock_guard<std::mutex> lock(this->left_arm_target_joint_state_mtx_);
-    this->left_arm_target_joint_state_ = joint_state;
+    std::lock_guard<std::mutex> lock(this->left_arm_target_joint_pos_mtx_);
+    this->left_arm_target_joint_pos_ = joint_pos;
 }
 
-void ArmPlanner::setRightArmTargetJointState(const JointState& joint_state)
+void ArmPlanner::setRightArmTargetJointPosition(const Eigen::Vector<double,ArmModel::num_dof_>& joint_pos)
 {
-    std::lock_guard<std::mutex> lock(this->right_arm_target_joint_state_mtx_);
-    this->right_arm_target_joint_state_ = joint_state;
+    std::lock_guard<std::mutex> lock(this->right_arm_target_joint_pos_mtx_);
+    this->right_arm_target_joint_pos_ = joint_pos;
 }
 
 void ArmPlanner::planDualArmLinear(
     const std::chrono::steady_clock::time_point& start_timepoint,
-    const JointState& left_arm_begin,
-    const JointState& left_arm_end,
-    const JointState& right_arm_begin,
-    const JointState& right_arm_end)
+    const Eigen::Vector<double,ArmModel::num_dof_>& left_arm_begin,
+    const Eigen::Vector<double,ArmModel::num_dof_>& left_arm_end,
+    const Eigen::Vector<double,ArmModel::num_dof_>& right_arm_begin,
+    const Eigen::Vector<double,ArmModel::num_dof_>& right_arm_end)
 {
-    /* Convert the interval of plan loop to std::chrono duration type at the first run. */
-    // static std::chrono::steady_clock::duration plan_duration(static_cast<int64_t>(this->dt_plan_*1e9));
-    static std::chrono::steady_clock::duration plan_duration = 
-        std::chrono::duration_cast<std::chrono::steady_clock::duration>(std::chrono::duration<double>(this->dt_plan_/this->num_plan_waypoint_));
+    /* Use L2-norm to determine the trajectory duration */
+    double left_arm_duration = this->dt_plan_ + 3.0 * (left_arm_end - left_arm_begin).squaredNorm();
+    double right_arm_duration = this->dt_plan_ + 3.0 * (right_arm_end - right_arm_begin).squaredNorm();
+    std::chrono::steady_clock::duration left_arm_waypoint_interval = 
+        std::chrono::duration_cast<std::chrono::steady_clock::duration>(std::chrono::duration<double>(left_arm_duration/this->num_plan_waypoint_));
+    std::chrono::steady_clock::duration right_arm_waypoint_interval = 
+        std::chrono::duration_cast<std::chrono::steady_clock::duration>(std::chrono::duration<double>(right_arm_duration/this->num_plan_waypoint_));
 
     /* Create a trajectory waypoint */
-    TrajectoryBuffer<this->num_plan_waypoint_>::TrajectoryPoint waypoint;
+    TrajectoryBuffer<this->num_plan_waypoint_>::TrajectoryPoint left_arm_waypoint;
+    TrajectoryBuffer<this->num_plan_waypoint_>::TrajectoryPoint right_arm_waypoint;
 
     /* zero velocities/accelerations/torque here, to be filled by interpolation */
-    waypoint.state.joint_vel.setZero();
-    waypoint.state.joint_acc.setZero();
-    waypoint.state.joint_torq.setZero();
-
-    waypoint.timestamp = start_timepoint;
+    left_arm_waypoint.state.joint_vel.setZero();
+    left_arm_waypoint.state.joint_acc.setZero();
+    left_arm_waypoint.state.joint_torq.setZero();
+    left_arm_waypoint.timestamp = start_timepoint;
+    right_arm_waypoint.state.joint_vel.setZero();
+    right_arm_waypoint.state.joint_acc.setZero();
+    right_arm_waypoint.state.joint_torq.setZero();
+    right_arm_waypoint.timestamp = start_timepoint;
 
     // fill internal_waypoints_[0..N-1]
     for ( size_t i = 0; i < this->num_plan_waypoint_; ++i )
     {
         double alpha = double(i+1) / (this->num_plan_waypoint_ + 1);
 
+        if ( i>0 )
+        {
+            left_arm_waypoint.timestamp += left_arm_waypoint_interval;
+        }
         /* Compute left arm waypoint. */
-        waypoint.state.joint_pos = left_arm_begin.joint_pos + alpha * (left_arm_end.joint_pos - left_arm_begin.joint_pos);
+        left_arm_waypoint.state.joint_pos = left_arm_begin + alpha * (left_arm_end - left_arm_begin);
 
         /* Push waypoint to left arm trajectory buffer. */
-        this->left_arm_trajectory_buffer_.push(waypoint);
+        this->left_arm_trajectory_buffer_.push(left_arm_waypoint);
 
         LOG_DEBUG("Left arm linear plan waypoint({:d}):{:.4f},{:.4f},{:.4f},{:.4f},{:.4f},{:.4f}",i,
-            waypoint.state.joint_pos(0),waypoint.state.joint_pos(1),waypoint.state.joint_pos(2),
-            waypoint.state.joint_pos(3),waypoint.state.joint_pos(4),waypoint.state.joint_pos(5));
-
+            left_arm_waypoint.state.joint_pos(0),left_arm_waypoint.state.joint_pos(1),left_arm_waypoint.state.joint_pos(2),
+            left_arm_waypoint.state.joint_pos(3),left_arm_waypoint.state.joint_pos(4),left_arm_waypoint.state.joint_pos(5));
+        
+        if ( i>0 )
+        {
+            right_arm_waypoint.timestamp += right_arm_waypoint_interval;
+        }
         /* Compute right arm waypoint. */
-        waypoint.state.joint_pos = right_arm_begin.joint_pos + alpha * (right_arm_end.joint_pos - right_arm_begin.joint_pos);
+        right_arm_waypoint.state.joint_pos = right_arm_begin + alpha * (right_arm_end - right_arm_begin);
 
         /* Push waypoint to right arm trajectory buffer. */
-        this->right_arm_trajectory_buffer_.push(waypoint);
+        this->right_arm_trajectory_buffer_.push(right_arm_waypoint);
 
         LOG_DEBUG("Right arm linear plan waypoint({:d}):{:.4f},{:.4f},{:.4f},{:.4f},{:.4f},{:.4f}",i,
-            waypoint.state.joint_pos(0),waypoint.state.joint_pos(1),waypoint.state.joint_pos(2),
-            waypoint.state.joint_pos(3),waypoint.state.joint_pos(4),waypoint.state.joint_pos(5));
-        
-        waypoint.timestamp += plan_duration;
+            right_arm_waypoint.state.joint_pos(0),right_arm_waypoint.state.joint_pos(1),right_arm_waypoint.state.joint_pos(2),
+            right_arm_waypoint.state.joint_pos(3),right_arm_waypoint.state.joint_pos(4),right_arm_waypoint.state.joint_pos(5));
     }
     /* Commit the pre-computation operation to swap the ping-pong buffer in the trajectory buffer. */
     this->left_arm_trajectory_buffer_.commit();
@@ -116,24 +136,22 @@ void ArmPlanner::threadPlan()
     static struct timespec cycletime = {0, static_cast<long>(this->dt_plan_ * 1e9)};
     clock_gettime(CLOCK_MONOTONIC, &wakeup_time);
 
-    while ( this->running_.load(std::memory_order_acquire) )
+    while ( this->running_ )
     {
         increase_time_spec(&wakeup_time, &cycletime);
         clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, &wakeup_time, NULL);
 
-        // LOG_INFO("Planner time: {:d}", std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now().time_since_epoch()).count());
+        std::lock_guard<std::mutex> left_arm_lock(this->left_arm_target_joint_pos_mtx_);
+        std::lock_guard<std::mutex> right_arm_lock(this->right_arm_target_joint_pos_mtx_);
 
-        std::lock_guard<std::mutex> left_arm_lock(this->left_arm_target_joint_state_mtx_);
-        std::lock_guard<std::mutex> right_arm_lock(this->right_arm_target_joint_state_mtx_);
-
+        JointState left_arm_trajectory_begin_state;
+        JointState right_arm_trajectory_begin_state;
+        std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now();
+        this->left_arm_trajectory_buffer_.interpolate(left_arm_trajectory_begin_state, now);
+        this->right_arm_trajectory_buffer_.interpolate(right_arm_trajectory_begin_state, now);
         /* Use linear plan to generate internal waypoints */
-        this->planDualArmLinear(
-            std::chrono::steady_clock::now(),
-            this->left_arm_last_target_joint_state_, this->left_arm_target_joint_state_,
-            this->right_arm_last_target_joint_state_, this->right_arm_target_joint_state_);
-
-        /* Update history joint state */
-        this->left_arm_last_target_joint_state_ = this->left_arm_target_joint_state_;
-        this->right_arm_last_target_joint_state_ = this->right_arm_target_joint_state_;
+        this->planDualArmLinear(now,
+            left_arm_trajectory_begin_state.joint_pos, this->left_arm_target_joint_pos_,
+            right_arm_trajectory_begin_state.joint_pos, this->right_arm_target_joint_pos_);
     }
 }

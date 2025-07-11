@@ -28,11 +28,13 @@ int main(int argv, char** argc)
     interface->start(PROJECT_PATH"/assets/mujoco_model/piper_dual_arm_position.xml");
     /* Create task runner. */
     TeleopTaskRunner runner(interface, 20, 200);
+    runner.initialize();
     /* Blocking runner. */
     runner.run();
     /* Stop task runner.
      * Terminate interface, controller and planner. */
     runner.stop();
+    interface->stop();
     /* Flush log data into file. */
     spdlog::drop_all();
 

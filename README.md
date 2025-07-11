@@ -14,8 +14,17 @@ Dual AgileX Piper 6-axis manipulator.
 * joint PD control with inverse dynamics feedforward torque.
 * mujoco simulation and real hardware control.
 
+## debug
+
+Use script/plot_arm_pos_cmd.py to parse the joint positions commands to dual arms.
+
 ## todo
 
 - [ ] Refactor arm model as rigid body tree.
 - [ ] Create a config file to replace some constants like ArmModel::num_dof_ and ArmPlanner::num_plan_waypoint_.
-- [ ] Remove B-Spline and other interpolation methods in `TrajectoryBuffer`.
+- [x] Remove linear and quintic polynomial interpolation methods in `TrajectoryBuffer`.
+- [ ] Replace `JointState` in `TrajectoryBuffer::TrajectoryPoint` with `Eigen::Vector<double, ArmModel::num_dof_> joint_pos`
+- [ ] Penalize deviation from previous joint position in damped least square inverse kinematics. Cost function: $ cost = \|J^# e\|^2 + \lambda \|q - q_{prev}\|^2 $.
+- [ ] Try gradient-based optimizer to solve for inverse kinematics.
+- [ ] Program terminated when simulator window is closed by user.
+- [ ] Separate inverse kinematics from arm_model.cpp to single header file.

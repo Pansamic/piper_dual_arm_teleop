@@ -33,8 +33,10 @@ public:
     TeleopTaskRunner() = delete;
     TeleopTaskRunner(std::shared_ptr<ArmInterface> interface, size_t freq_plan, size_t freq_ctrl);
     ~TeleopTaskRunner() = default;
+    void initialize();
     void run();
     void stop();
+    void setHomeConfiguration();
 private:
     static const Eigen::Vector3d head_position_;
     static const Eigen::Quaterniond left_hand_orientation_offset_;
@@ -61,10 +63,8 @@ private:
     Eigen::Matrix4d right_hand_target_pose_;
     Eigen::Quaterniond right_hand_actual_orientation_;
 
-    JointState left_arm_target_joint_state_;
-    JointState left_arm_actual_joint_state_;
-    JointState right_arm_target_joint_state_;
-    JointState right_arm_actual_joint_state_;
+    Eigen::Vector<double,ArmModel::num_dof_> left_arm_target_joint_pos_;
+    Eigen::Vector<double,ArmModel::num_dof_> right_arm_target_joint_pos_;
 
     double left_gripper_control_ = 0;
     double right_gripper_control_ = 0;
@@ -86,8 +86,8 @@ private:
     TrajectoryBuffer<ArmPlanner::num_plan_waypoint_> left_arm_trajectory_buffer_;
     TrajectoryBuffer<ArmPlanner::num_plan_waypoint_> right_arm_trajectory_buffer_;
 
-    RingBuffer<JointState> left_arm_joint_state_history_; 
-    RingBuffer<JointState> right_arm_joint_state_history_;
+    RingBuffer<Eigen::Vector<double,ArmModel::num_dof_>> left_arm_joint_state_history_; 
+    RingBuffer<Eigen::Vector<double,ArmModel::num_dof_>> right_arm_joint_state_history_;
 
     /**
      * @brief Program termination signal handler.
@@ -127,11 +127,11 @@ private:
      * @param joint_vel Joint velocity result.
      * @param joint_acc Joint Acceleration result.
      */
-    ErrorCode computeJointVelocityAndAcceleration(
-        RingBuffer<JointState>& history,
-        const Eigen::Vector<double, ArmModel::num_dof_>& joint_pos,
-        Eigen::Vector<double, ArmModel::num_dof_>& joint_vel,
-        Eigen::Vector<double, ArmModel::num_dof_>& joint_acc);
+    // ErrorCode computeJointVelocityAndAcceleration(
+    //     RingBuffer<JointState>& history,
+    //     const Eigen::Vector<double, ArmModel::num_dof_>& joint_pos,
+    //     Eigen::Vector<double, ArmModel::num_dof_>& joint_vel,
+    //     Eigen::Vector<double, ArmModel::num_dof_>& joint_acc);
 };
 
 #endif // __TELEOP_TASK_RUNNER_H__

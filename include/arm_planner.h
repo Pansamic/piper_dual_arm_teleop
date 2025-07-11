@@ -11,8 +11,6 @@
 #ifndef __ARM_PLANNER_H__
 #define __ARM_PLANNER_H__
 
-#include <condition_variable>
-#include <joint_state.h>
 #include <trajectory_buffer.hpp>
 #include <arm_model.h>
 
@@ -36,68 +34,25 @@ public:
         TrajectoryBuffer<num_plan_waypoint_>& right_arm_trajectory_buffer,
         size_t freq_plan);
     ~ArmPlanner() = default;
+    void start();
     void stop();
-    void setLeftArmTargetJointState(const JointState& joint_state);
-    void setRightArmTargetJointState(const JointState& joint_state);
+    void setLeftArmTargetJointPosition(const Eigen::Vector<double,ArmModel::num_dof_>& joint_pos);
+    void setRightArmTargetJointPosition(const Eigen::Vector<double,ArmModel::num_dof_>& joint_pos);
 private:
-    std::atomic<bool> running_;
+    bool running_;
     /* planner loop interval, unit: second */
     double dt_plan_;
-    /* controller loop interval, unit: second */
-    // double dt_ctrl_;
-    /* amount of waypoints in a trajectory */
-    // size_t traj_len_;
-
-    /* used to mark the end waypoint of last trajectory slice
-     * for continuous planning */
-    JointState left_arm_last_target_joint_state_;
-    JointState right_arm_last_target_joint_state_;
 
     /* This buffer is used to store */
-    std::mutex left_arm_target_joint_state_mtx_;
-    JointState left_arm_target_joint_state_;
-    std::mutex right_arm_target_joint_state_mtx_;
-    JointState right_arm_target_joint_state_;
+    std::mutex left_arm_target_joint_pos_mtx_;
+    Eigen::Vector<double,ArmModel::num_dof_> left_arm_target_joint_pos_;
+    std::mutex right_arm_target_joint_pos_mtx_;
+    Eigen::Vector<double,ArmModel::num_dof_> right_arm_target_joint_pos_;
 
     TrajectoryBuffer<num_plan_waypoint_>& left_arm_trajectory_buffer_;
     TrajectoryBuffer<num_plan_waypoint_>& right_arm_trajectory_buffer_;
 
     std::thread plan_thread_;
-
-    /**
-     * @brief Perform linear interpolation on the trajectory waypoints.
-     * 
-     * @param waypoints waypoint array, usually from planner function.
-     * 
-     * @note Write interpolated trajectory to `this->left_arm_trajectory_buffer_` or
-     * `this->right_arm_trajectory_buffer_`
-     */
-    // void interpolateLinear(
-    //     RingBuffer<JointState>& traj_buf,
-    //     const std::array<JointState, num_plan_waypoint_>& waypoints);
-    /**
-     * @brief Perform B-spline interpolation on the trajectory waypoints.
-     * 
-     * @param waypoints waypoint array, usually from planner function.
-     * 
-     * @note Write interpolated trajectory to `this->left_arm_trajectory_buffer_` or
-     * `this->right_arm_trajectory_buffer_`
-     */
-    // void interpolateBSpline(
-    //     RingBuffer<JointState>& traj_buf,
-    //     const std::array<JointState, num_plan_waypoint_>& waypoints);
-    /**
-     * @brief Perform quintic polynomial interpolation on the trajectory waypoints.
-     * 
-     * @param waypoints waypoint array, usually from planner function.
-     * 
-     * @note Write interpolated trajectory to `this->left_arm_trajectory_buffer_` or
-     * `this->right_arm_trajectory_buffer_`
-     */
-    // void interpolateQuinticPolynomial(
-    //     RingBuffer<JointState>& traj_buf,
-    //     const std::array<JointState, num_plan_waypoint_>& waypoints);
-
     /**
      * @brief Linear waypoints generation without obstacle avoidance and self collision.
      * 
@@ -106,10 +61,10 @@ private:
      */
     void planDualArmLinear(
         const std::chrono::steady_clock::time_point& start_timepoint,
-        const JointState& left_arm_begin,
-        const JointState& left_arm_end,
-        const JointState& right_arm_begin,
-        const JointState& right_arm_end);
+        const Eigen::Vector<double,ArmModel::num_dof_>& left_arm_begin,
+        const Eigen::Vector<double,ArmModel::num_dof_>& left_arm_end,
+        const Eigen::Vector<double,ArmModel::num_dof_>& right_arm_begin,
+        const Eigen::Vector<double,ArmModel::num_dof_>& right_arm_end);
 
     /**
      * @brief Covariant Hamilton Optimization Motion Planning.
@@ -119,8 +74,8 @@ private:
      * @todo Add obstacle expression and finish CHOMP algorithm.
      */
     void planDualArmCHOMP(
-        const JointState& begin,
-        const JointState& end);
+        const Eigen::Vector<double,ArmModel::num_dof_>& begin,
+        const Eigen::Vector<double,ArmModel::num_dof_>& end);
 
     void threadPlan(void);
 };

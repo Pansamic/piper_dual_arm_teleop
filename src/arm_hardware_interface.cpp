@@ -9,6 +9,7 @@
  * 
  */
 #include <unistd.h>
+#include <sys/stat.h>
 #include <log.hpp>
 #include <arm_interface.h>
 #include <arm_hardware_interface.h>
@@ -17,8 +18,8 @@
  * @brief Initialize SocketCAN
  * 
  */
-ArmHardwareInterface::ArmHardwareInterface(const char* left_arm_can_name, const char* right_arm_can_name):
-    left_can_socket_(-1), right_can_socket_(-1), running_(true),
+ArmHardwareInterface::ArmHardwareInterface():
+    left_can_socket_(-1), right_can_socket_(-1), running_(false),
     left_actual_joint_pos_(Eigen::Vector<double,ArmModel::num_dof_>::Zero()),
     left_actual_joint_vel_(Eigen::Vector<double,ArmModel::num_dof_>::Zero()),
     left_actual_joint_acc_(Eigen::Vector<double,ArmModel::num_dof_>::Zero()),
@@ -28,8 +29,36 @@ ArmHardwareInterface::ArmHardwareInterface(const char* left_arm_can_name, const 
     right_actual_joint_acc_(Eigen::Vector<double,ArmModel::num_dof_>::Zero()),
     right_actual_joint_torq_(Eigen::Vector<double,ArmModel::num_dof_>::Zero())
 {
+
+}
+
+bool ArmHardwareInterface::start(const char* left_arm_can_name, const char* right_arm_can_name)
+{
+    this->running_ = true;
+
     struct sockaddr_can can_addr_ = {0};
     struct ifreq can_ifr_ = {0};
+
+    /* Check interface exists or not */
+    bool both_interface_exist = true;
+    struct stat st;
+    std::string path = "/sys/class/net/";
+    std::string left_arm_interface_path = path + std::string(left_arm_can_name);
+    std::string right_arm_interface_path = path + std::string(right_arm_can_name);
+    if (stat(left_arm_interface_path.c_str(), &st) != 0)
+    {
+        both_interface_exist = false;
+        LOG_ERROR("CAN interface {} does not exist", left_arm_can_name);
+    }
+    if ( stat(right_arm_interface_path.c_str(), &st) != 0 )
+    {
+        both_interface_exist = false;
+        LOG_ERROR("CAN interface {} does not exist", right_arm_can_name);
+    }
+    if (!both_interface_exist)
+    {
+        return false; // Return false if either interface does not exist
+    }
 
     this->left_can_socket_ = socket(PF_CAN, SOCK_RAW, CAN_RAW);
     strcpy(can_ifr_.ifr_name, left_arm_can_name);
@@ -78,9 +107,10 @@ ArmHardwareInterface::ArmHardwareInterface(const char* left_arm_can_name, const 
         LOG_ERROR("Failed to enable actuators. Exiting...");
         exit(EXIT_FAILURE);
     }
+    return true;
 }
 
-ArmHardwareInterface::~ArmHardwareInterface()
+void ArmHardwareInterface::stop()
 {
     setJointPositionMode(this->left_can_socket_);
     setJointPositionMode(this->right_can_socket_);
@@ -116,9 +146,8 @@ ArmHardwareInterface::~ArmHardwareInterface()
     }
     this->running_ = false;
     this->read_thread_.join();
-    LOG_INFO("Arm Interface is terminated.");
+    LOG_INFO("Piper Arm Hardware Interface is stopped.");
 }
-
 void ArmHardwareInterface::setLeftJointControl(
     const Eigen::Vector<double,ArmModel::num_dof_>& joint_pos,
     const Eigen::Vector<double,ArmModel::num_dof_>& joint_vel,
@@ -544,8 +573,8 @@ void ArmHardwareInterface::setActuatorControl(
         sendControlMessage(can_socket, i,
             double2int16(joint_pos(i),-12.5,12.5,16),
             double2int16(joint_vel(i),-45.0,45.0,12),
-            double2int16(2.0,0.0,500.0,12),
-            double2int16(0.15,-5,5.0,12),
+            double2int16(5.0,0.0,500.0,12),
+            double2int16(0.4,-5,5.0,12),
             double2int8(joint_torque(i),-18.0,18.0,8)
        );
     }

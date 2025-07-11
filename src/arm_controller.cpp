@@ -12,10 +12,6 @@
 #include <arm_model.h>
 #include <arm_controller.h>
 
-const Eigen::Vector<double,ArmModel::num_dof_> ArmController::joint_kp_ = Eigen::Vector<double,ArmModel::num_dof_>(100,100,100,100,100,100);
-
-const Eigen::Vector<double,ArmModel::num_dof_> ArmController::joint_kd_ = Eigen::Vector<double,ArmModel::num_dof_>(20,20,20,20,20,20);
-
 ArmController::ArmController(
     std::shared_ptr<ArmModel> left_arm_model,
     std::shared_ptr<ArmModel> right_arm_model,
@@ -26,15 +22,20 @@ ArmController::ArmController(
     left_arm_model_(left_arm_model), right_arm_model_(right_arm_model),
     interface_(interface), freq_ctrl_(freq_ctrl),
     left_arm_trajectory_buffer_(left_arm_trajectory_buffer),
-    right_arm_trajectory_buffer_(right_arm_trajectory_buffer),
-    control_thread_(&ArmController::threadControl, this), running_(true)
+    right_arm_trajectory_buffer_(right_arm_trajectory_buffer)
 {
 
 }
 
+void ArmController::start()
+{
+    this->running_ = true;
+    this->control_thread_ = std::thread(&ArmController::threadControl, this);
+}
+
 void ArmController::stop()
 {
-    this->running_.store(false, std::memory_order_release);
+    this->running_ = false;
     if ( this->control_thread_.joinable() )
     {
         control_thread_.join();  // Ensure thread finishes before destruction
@@ -75,7 +76,7 @@ void ArmController::threadControl()
     static struct timespec cycletime = {0, static_cast<long int>(1000000000L/this->freq_ctrl_)};
     clock_gettime(CLOCK_MONOTONIC, &wakeup_time);
 
-    while( this->running_.load(std::memory_order_acquire) )
+    while( this->running_ )
     {
         increase_time_spec(&wakeup_time, &cycletime);
         clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, &wakeup_time, NULL);
@@ -112,6 +113,9 @@ void ArmController::threadControl()
         default:
             break;
         }
+        LOG_DEBUG("Set left arm joint position:{:.4f},{:.4f},{:.4f},{:.4f},{:.4f},{:.4f}",
+            target_joint_state.joint_pos(0), target_joint_state.joint_pos(1), target_joint_state.joint_pos(2),
+            target_joint_state.joint_pos(3), target_joint_state.joint_pos(4), target_joint_state.joint_pos(5));
         this->interface_->setLeftJointControl(target_joint_state.joint_pos, target_joint_state.joint_vel, feedforward_torque);
 
         actual_joint_state.joint_pos = this->interface_->getRightJointPosition();
@@ -146,6 +150,9 @@ void ArmController::threadControl()
         default:
             break;
         }
+        LOG_DEBUG("Set right arm joint position:{:.4f},{:.4f},{:.4f},{:.4f},{:.4f},{:.4f}",
+            target_joint_state.joint_pos(0), target_joint_state.joint_pos(1), target_joint_state.joint_pos(2),
+            target_joint_state.joint_pos(3), target_joint_state.joint_pos(4), target_joint_state.joint_pos(5));
         this->interface_->setRightJointControl(target_joint_state.joint_pos, target_joint_state.joint_vel, feedforward_torque);
     }
 }

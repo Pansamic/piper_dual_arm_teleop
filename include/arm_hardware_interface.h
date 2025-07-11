@@ -27,9 +27,10 @@
 class ArmHardwareInterface final : public ArmInterface
 {
 public:
-    ArmHardwareInterface(const char* left_arm_can_name, const char* right_arm_can_name);
-    ~ArmHardwareInterface();
-
+    ArmHardwareInterface();
+    ~ArmHardwareInterface() = default;
+    bool start(const char* left_arm_can_name, const char* right_arm_can_name);
+    void stop();
     void setLeftJointControl(
         const Eigen::Vector<double,ArmModel::num_dof_>& joint_pos,
         const Eigen::Vector<double,ArmModel::num_dof_>& joint_vel,
@@ -122,7 +123,7 @@ private:
     };
 
     /* runing flag */
-    std::atomic<bool> running_;
+    bool running_;
 
     /* CAN socket id */
     int left_can_socket_;

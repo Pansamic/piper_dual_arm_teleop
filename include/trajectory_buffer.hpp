@@ -24,7 +24,6 @@ class TrajectoryBuffer
 public:
     using TimePoint = std::chrono::steady_clock::time_point;
 
-
     struct TrajectoryPoint
     {
         TimePoint timestamp;

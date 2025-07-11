@@ -149,6 +149,30 @@ const Eigen::Vector<double,ArmModel::num_dof_>& ArmSimulationInterface::getRight
     return this->right_arm_target_state_.joint_torq;
 }
 
+void ArmSimulationInterface::setLeftMocapPose(const Eigen::Vector3d& position, const Eigen::Quaterniond& orientation)
+{
+    this->d->mocap_pos[0] = position(0);
+    this->d->mocap_pos[1] = position(1);
+    this->d->mocap_pos[2] = position(2);
+
+    this->d->mocap_quat[0] = orientation.w();
+    this->d->mocap_quat[1] = orientation.x();
+    this->d->mocap_quat[2] = orientation.y();
+    this->d->mocap_quat[3] = orientation.z();
+}
+
+void ArmSimulationInterface::setRightMocapPose(const Eigen::Vector3d& position, const Eigen::Quaterniond& orientation)
+{
+    this->d->mocap_pos[3] = position(0);
+    this->d->mocap_pos[4] = position(1);
+    this->d->mocap_pos[5] = position(2);
+
+    this->d->mocap_quat[4] = orientation.w();
+    this->d->mocap_quat[5] = orientation.x();
+    this->d->mocap_quat[6] = orientation.y();
+    this->d->mocap_quat[7] = orientation.z();
+}
+
 void ArmSimulationInterface::setJointPDControl()
 {
     Eigen::Vector<double, ArmModel::num_dof_> left_control =
@@ -376,6 +400,7 @@ void ArmSimulationInterface::physicsLoop()
                         /* Apply joint level PD control logic to mujoco model.
                          * This operation is only valid with "assets/mujoco_model/piper_dual_arm_torque.xml" */
                         // this->setJointPDControl();
+
                         /* Set position command to mujoco model.
                          * This operation only valid with "assets/mujoco_model/piper_dual_arm_position.xml" */
                         for ( std::size_t i=0 ; i<ArmModel::num_dof_ ; i++ )
@@ -383,12 +408,12 @@ void ArmSimulationInterface::physicsLoop()
                             this->d->ctrl[i] = this->left_arm_target_state_.joint_pos(i);
                             this->d->ctrl[i+2+ArmModel::num_dof_] = this->right_arm_target_state_.joint_pos(i);
                         }
-                        LOG_DEBUG("Set left arm joint position in mujoco:{:.4f},{:.4f},{:.4f},{:.4f},{:.4f},{:.4f}",
-                            this->left_arm_target_state_.joint_pos(0),this->left_arm_target_state_.joint_pos(1),this->left_arm_target_state_.joint_pos(2),
-                            this->left_arm_target_state_.joint_pos(3),this->left_arm_target_state_.joint_pos(4),this->left_arm_target_state_.joint_pos(5));
-                        LOG_DEBUG("Set right arm joint position in mujoco:{:.4f},{:.4f},{:.4f},{:.4f},{:.4f},{:.4f}",
-                            this->right_arm_target_state_.joint_pos(0),this->right_arm_target_state_.joint_pos(1),this->right_arm_target_state_.joint_pos(2),
-                            this->right_arm_target_state_.joint_pos(3),this->right_arm_target_state_.joint_pos(4),this->right_arm_target_state_.joint_pos(5));
+                        // LOG_DEBUG("Set left arm joint position in mujoco:{:.4f},{:.4f},{:.4f},{:.4f},{:.4f},{:.4f}",
+                        //     this->left_arm_target_state_.joint_pos(0),this->left_arm_target_state_.joint_pos(1),this->left_arm_target_state_.joint_pos(2),
+                        //     this->left_arm_target_state_.joint_pos(3),this->left_arm_target_state_.joint_pos(4),this->left_arm_target_state_.joint_pos(5));
+                        // LOG_DEBUG("Set right arm joint position in mujoco:{:.4f},{:.4f},{:.4f},{:.4f},{:.4f},{:.4f}",
+                        //     this->right_arm_target_state_.joint_pos(0),this->right_arm_target_state_.joint_pos(1),this->right_arm_target_state_.joint_pos(2),
+                        //     this->right_arm_target_state_.joint_pos(3),this->right_arm_target_state_.joint_pos(4),this->right_arm_target_state_.joint_pos(5));
                         mj_step2(m, d);
                         const char* message = diverged(m->opt.disableflags, d);
                         if (message)
@@ -441,6 +466,7 @@ void ArmSimulationInterface::physicsLoop()
                             /* Apply joint level PD control logic to mujoco model.
                             * This operation is only valid with "assets/mujoco_model/piper_dual_arm_torque.xml" */
                             // this->setJointPDControl();
+
                             /* Set position command to mujoco model.
                             * This operation only valid with "assets/mujoco_model/piper_dual_arm_position.xml" */
                             for ( std::size_t i=0 ; i<ArmModel::num_dof_ ; i++ )
@@ -448,12 +474,12 @@ void ArmSimulationInterface::physicsLoop()
                                 this->d->ctrl[i] = this->left_arm_target_state_.joint_pos(i);
                                 this->d->ctrl[i+2+ArmModel::num_dof_] = this->right_arm_target_state_.joint_pos(i);
                             }
-                            LOG_DEBUG("Set left arm joint position in mujoco:{:.4f},{:.4f},{:.4f},{:.4f},{:.4f},{:.4f}",
-                                this->left_arm_target_state_.joint_pos(0),this->left_arm_target_state_.joint_pos(1),this->left_arm_target_state_.joint_pos(2),
-                                this->left_arm_target_state_.joint_pos(3),this->left_arm_target_state_.joint_pos(4),this->left_arm_target_state_.joint_pos(5));
-                            LOG_DEBUG("Set right arm joint position in mujoco:{:.4f},{:.4f},{:.4f},{:.4f},{:.4f},{:.4f}",
-                                this->right_arm_target_state_.joint_pos(0),this->right_arm_target_state_.joint_pos(1),this->right_arm_target_state_.joint_pos(2),
-                                this->right_arm_target_state_.joint_pos(3),this->right_arm_target_state_.joint_pos(4),this->right_arm_target_state_.joint_pos(5));
+                            // LOG_DEBUG("Set left arm joint position in mujoco:{:.4f},{:.4f},{:.4f},{:.4f},{:.4f},{:.4f}",
+                            //     this->left_arm_target_state_.joint_pos(0),this->left_arm_target_state_.joint_pos(1),this->left_arm_target_state_.joint_pos(2),
+                            //     this->left_arm_target_state_.joint_pos(3),this->left_arm_target_state_.joint_pos(4),this->left_arm_target_state_.joint_pos(5));
+                            // LOG_DEBUG("Set right arm joint position in mujoco:{:.4f},{:.4f},{:.4f},{:.4f},{:.4f},{:.4f}",
+                            //     this->right_arm_target_state_.joint_pos(0),this->right_arm_target_state_.joint_pos(1),this->right_arm_target_state_.joint_pos(2),
+                            //     this->right_arm_target_state_.joint_pos(3),this->right_arm_target_state_.joint_pos(4),this->right_arm_target_state_.joint_pos(5));
                             mj_step2(m, d);
                             const char* message = diverged(m->opt.disableflags, d);
                             if (message)

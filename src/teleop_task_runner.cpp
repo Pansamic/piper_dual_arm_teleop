@@ -11,11 +11,9 @@
 #include <termination.h>
 #include <teleop_task_runner.h>
 
-const Eigen::Vector3d TeleopTaskRunner::head_position_ = Eigen::Vector3d(0.325024,0,0.80246);
-const Eigen::Quaterniond TeleopTaskRunner::left_hand_orientation_offset_ = Eigen::Quaterniond(Eigen::AngleAxisd(M_PI / 2, Eigen::Vector3d::UnitY()));
-const Eigen::Quaterniond TeleopTaskRunner::right_hand_orientation_offset_(
-    Eigen::Quaterniond(Eigen::AngleAxisd(M_PI, Eigen::Vector3d::UnitZ())) *
-    Eigen::Quaterniond(Eigen::AngleAxisd(-M_PI / 2.0, Eigen::Vector3d::UnitY())));
+const Eigen::Vector3d TeleopTaskRunner::head_position_ = Eigen::Vector3d(0.5,0,1.0);
+const Eigen::Quaterniond TeleopTaskRunner::left_hand_orientation_offset_ = Eigen::Quaterniond(Eigen::AngleAxisd(M_PI, Eigen::Vector3d::UnitX()));
+const Eigen::Quaterniond TeleopTaskRunner::right_hand_orientation_offset_ = Eigen::Quaterniond(Eigen::AngleAxisd(M_PI, Eigen::Vector3d::UnitX()));
 const Eigen::Matrix4d TeleopTaskRunner::left_arm_base_transform_ = (Eigen::Matrix4d() << 
     0,  0,  1, 0.23805,
    -1,  0,  0, 0.19675,
@@ -50,21 +48,8 @@ TeleopTaskRunner::TeleopTaskRunner(std::shared_ptr<ArmInterface> interface, size
 {
 }
 
-void TeleopTaskRunner::stop()
+void TeleopTaskRunner::initialize()
 {
-    // this->running_.store(false, std::memory_order_release);
-    this->running_ = false;
-    this->io_context_.stop();
-    this->io_context_thread_.join();
-    this->planner_->stop();
-    this->controller_->stop();
-}
-
-void TeleopTaskRunner::run()
-{
-    whole_body_msg msg;
-    ErrorCode err;
-
     this->channel_.bind_message_queue("whole_body_sender", ParserType::Sender, this->send_mq_);
     this->channel_.bind_message_queue("whole_body_receiver", ParserType::Receiver, this->recv_mq_);
     this->channel_.enable_sender();
@@ -88,6 +73,16 @@ void TeleopTaskRunner::run()
         this->right_arm_trajectory_buffer_,
         this->freq_ctrl_);
 
+    this->planner_->start();
+    this->controller_->start();
+}
+
+void TeleopTaskRunner::run()
+{
+    whole_body_msg msg;
+    
+    ErrorCode err;
+    
     this->running_ = true;
 
     while ( this->running_ )
@@ -127,6 +122,12 @@ void TeleopTaskRunner::run()
 
             this->scaleLeftHandPose(this->left_hand_target_pos_, this->left_hand_target_orientation_);
 
+            /* Set motion capture object's position and orientation in simulator. */
+            // if ( std::dynamic_pointer_cast<ArmSimulationInterface>(this->interface_) )
+            // {
+            //     static_cast<ArmSimulationInterface*>(this->interface_.get())->setLeftMocapPose(this->left_hand_target_pos_, this->left_hand_target_orientation_);
+            // }
+
             /* Construct transformation matrix from orientation and position */
             this->left_hand_target_pose_.block<3,3>(0,0) = this->left_hand_target_orientation_.toRotationMatrix();
             this->left_hand_target_pose_.block<3,1>(0,3) = this->left_hand_target_pos_;
@@ -140,7 +141,7 @@ void TeleopTaskRunner::run()
             this->interface_->setLeftGripperControl(0.07 - 0.07 * msg.left_grip, 0);
             this->interface_->setRightGripperControl(0.07 - 0.07 * msg.right_grip, 0);
             /* Get least damped inverse kinematics */
-            err = this->left_arm_model_->getDampedLeastSquareInverseKinematics(this->left_arm_target_joint_state_.joint_pos,
+            err = this->left_arm_model_->getDampedLeastSquareInverseKinematics(this->left_arm_target_joint_pos_,
                 0.1, Eigen::Vector<double,6>(0.05,0.05,0.05,0.1,0.1,0.1), 200, this->left_hand_target_pose_, this->interface_->getLeftJointPosition());
             if ( err == NoResult )
             {
@@ -148,27 +149,16 @@ void TeleopTaskRunner::run()
                 continue;
             }
 
-            if ( this->checkInvalidJointPosition(this->left_arm_target_joint_state_.joint_pos) )
+            if ( !this->checkInvalidJointPosition(this->left_arm_target_joint_pos_) )
             {
-                this->left_arm_target_joint_state_.joint_torq.setZero();
-                err = this->computeJointVelocityAndAcceleration(
-                    this->left_arm_joint_state_history_,
-                    this->left_arm_target_joint_state_.joint_pos,
-                    this->left_arm_target_joint_state_.joint_vel,
-                    this->left_arm_target_joint_state_.joint_acc);
-                if ( err == InvalidData )
-                {
-                    LOG_WARN("Failed to compute joint vel and acc: history buffer size={:d}", this->left_arm_joint_state_history_.size());
-                    this->planner_->setLeftArmTargetJointState(this->left_arm_target_joint_state_);
-                    this->left_arm_joint_state_history_.push(this->left_arm_target_joint_state_);
-                    continue;
-                }
-                LOG_INFO("Left arm target joint position:{:.4f},{:.4f},{:.4f},{:.4f},{:.4f},{:.4f}",
-                    this->left_arm_target_joint_state_.joint_pos(0),this->left_arm_target_joint_state_.joint_pos(1),this->left_arm_target_joint_state_.joint_pos(2),
-                    this->left_arm_target_joint_state_.joint_pos(3),this->left_arm_target_joint_state_.joint_pos(4),this->left_arm_target_joint_state_.joint_pos(5));
-                this->planner_->setLeftArmTargetJointState(this->left_arm_target_joint_state_);
-                this->left_arm_joint_state_history_.push(this->left_arm_target_joint_state_);
+                continue;
             }
+
+            LOG_DEBUG("Left arm IK solution:{:.4f},{:.4f},{:.4f},{:.4f},{:.4f},{:.4f}",
+                this->left_arm_target_joint_pos_(0),this->left_arm_target_joint_pos_(1),this->left_arm_target_joint_pos_(2),
+                this->left_arm_target_joint_pos_(3),this->left_arm_target_joint_pos_(4),this->left_arm_target_joint_pos_(5));
+            this->planner_->setLeftArmTargetJointPosition(this->left_arm_target_joint_pos_);
+            this->left_arm_joint_state_history_.push(this->left_arm_target_joint_pos_);
         }
         /* Check for right arm control enable signal */
         if ( msg.mask&(1<<12) )
@@ -190,6 +180,12 @@ void TeleopTaskRunner::run()
 
             this->scaleRightHandPose(this->right_hand_target_pos_, this->right_hand_target_orientation_);
 
+            /* Set motion capture object's position and orientation in simulator. */
+            // if ( std::dynamic_pointer_cast<ArmSimulationInterface>(this->interface_) )
+            // {
+            //     static_cast<ArmSimulationInterface*>(this->interface_.get())->setRightMocapPose(this->right_hand_target_pos_, this->right_hand_target_orientation_);
+            // }
+
             /* Construct transformation matrix from orientation and position */
             this->right_hand_target_pose_.block<3,3>(0,0) = this->right_hand_target_orientation_.toRotationMatrix();
             this->right_hand_target_pose_.block<3,1>(0,3) = this->right_hand_target_pos_;
@@ -201,7 +197,7 @@ void TeleopTaskRunner::run()
                 this->right_hand_target_orientation_.z(), this->right_hand_target_orientation_.w());
 
             /* Get least damped inverse kinematics */
-            err = this->right_arm_model_->getDampedLeastSquareInverseKinematics(this->right_arm_target_joint_state_.joint_pos,
+            err = this->right_arm_model_->getDampedLeastSquareInverseKinematics(this->right_arm_target_joint_pos_,
                 0.1, Eigen::Vector<double,6>(0.05,0.05,0.05,0.1,0.1,0.1), 200, this->right_hand_target_pose_, this->interface_->getRightJointPosition());
             if ( err == NoResult )
             {
@@ -209,35 +205,38 @@ void TeleopTaskRunner::run()
                 continue;
             }
 
-            if ( this->checkInvalidJointPosition(this->right_arm_target_joint_state_.joint_pos) )
+            if ( !this->checkInvalidJointPosition(this->right_arm_target_joint_pos_) )
             {
-                this->right_arm_target_joint_state_.joint_torq.setZero();
-                err = this->computeJointVelocityAndAcceleration(
-                    this->right_arm_joint_state_history_,
-                    this->right_arm_target_joint_state_.joint_pos,
-                    this->right_arm_target_joint_state_.joint_vel,
-                    this->right_arm_target_joint_state_.joint_acc);
-                if ( err == InvalidData )
-                {
-                    LOG_WARN("Failed to compute joint vel and acc: history buffer size={:d}", this->right_arm_joint_state_history_.size());
-                    this->planner_->setRightArmTargetJointState(this->right_arm_target_joint_state_);
-                    this->right_arm_joint_state_history_.push(this->right_arm_target_joint_state_);
-                    continue;
-                }
-                LOG_INFO("Right arm target joint position:{:.4f},{:.4f},{:.4f},{:.4f},{:.4f},{:.4f}",
-                    this->right_arm_target_joint_state_.joint_pos(0),this->right_arm_target_joint_state_.joint_pos(1),this->right_arm_target_joint_state_.joint_pos(2),
-                    this->right_arm_target_joint_state_.joint_pos(3),this->right_arm_target_joint_state_.joint_pos(4),this->right_arm_target_joint_state_.joint_pos(5));
-                this->planner_->setRightArmTargetJointState(this->right_arm_target_joint_state_);
-                this->right_arm_joint_state_history_.push(this->right_arm_target_joint_state_);
+                continue;
             }
+
+            LOG_DEBUG("Right arm IK solution:{:.4f},{:.4f},{:.4f},{:.4f},{:.4f},{:.4f}",
+                this->right_arm_target_joint_pos_(0),this->right_arm_target_joint_pos_(1),this->right_arm_target_joint_pos_(2),
+                this->right_arm_target_joint_pos_(3),this->right_arm_target_joint_pos_(4),this->right_arm_target_joint_pos_(5));
+            this->planner_->setRightArmTargetJointPosition(this->right_arm_target_joint_pos_);
+            this->right_arm_joint_state_history_.push(this->right_arm_target_joint_pos_);
         }
     }
+}
+
+void TeleopTaskRunner::stop()
+{
+    this->running_ = false;
+    this->io_context_.stop();
+    this->io_context_thread_.join();
+    this->planner_->stop();
+    this->controller_->stop();
+}
+
+void TeleopTaskRunner::setHomeConfiguration()
+{
+    
 }
 
 void TeleopTaskRunner::scaleLeftHandPose(Eigen::Vector3d& position, Eigen::Quaterniond& orientation)
 {
     /* Scale the end effector position. */
-    position *= 1.0;
+    position *= 1.1;
     /* Add position offset because VR remote controller position is based on headset,
      * so the base position should be converted to the arm model base. */
     position += this->head_position_;
@@ -247,7 +246,7 @@ void TeleopTaskRunner::scaleLeftHandPose(Eigen::Vector3d& position, Eigen::Quate
 void TeleopTaskRunner::scaleRightHandPose(Eigen::Vector3d& position, Eigen::Quaterniond& orientation)
 {
     /* Scale the end effector position. */
-    position *= 1.0;
+    position *= 1.1;
     /* Add position offset because VR remote controller position is based on headset,
      * so the base position should be converted to the arm model base. */
     position += this->head_position_;
@@ -263,45 +262,45 @@ bool TeleopTaskRunner::checkInvalidJointPosition(const Eigen::Vector<double,ArmM
     return true;
 }
 
-ErrorCode TeleopTaskRunner::computeJointVelocityAndAcceleration(
-    RingBuffer<JointState>& history,
-    const Eigen::Vector<double, ArmModel::num_dof_>& joint_pos,
-    Eigen::Vector<double, ArmModel::num_dof_>& joint_vel,
-    Eigen::Vector<double, ArmModel::num_dof_>& joint_acc)
-{
-    constexpr int window_size = 5;
-    constexpr int poly_deg = 2;
-    constexpr int dof = ArmModel::num_dof_;
-    static_assert(window_size >= poly_deg + 1, "Insufficient data points");
+// ErrorCode TeleopTaskRunner::computeJointVelocityAndAcceleration(
+//     RingBuffer<JointState>& history,
+//     const Eigen::Vector<double, ArmModel::num_dof_>& joint_pos,
+//     Eigen::Vector<double, ArmModel::num_dof_>& joint_vel,
+//     Eigen::Vector<double, ArmModel::num_dof_>& joint_acc)
+// {
+//     constexpr int window_size = 5;
+//     constexpr int poly_deg = 2;
+//     constexpr int dof = ArmModel::num_dof_;
+//     static_assert(window_size >= poly_deg + 1, "Insufficient data points");
 
-    ErrorCode err = OK;
+//     ErrorCode err = OK;
 
-    std::array<Eigen::Vector<double, dof>, window_size> pos_buffer;
+//     std::array<Eigen::Vector<double, dof>, window_size> pos_buffer;
 
-    if (history.size() < window_size)
-    {
-        /* Insufficient history for velocity/acceleration estimation */
-        err = InvalidData;
-        return err;
-    }
+//     if (history.size() < window_size)
+//     {
+//         /* Insufficient history for velocity/acceleration estimation */
+//         err = InvalidData;
+//         return err;
+//     }
 
-    constexpr double dt = 1.0 / 72.0;
-    Eigen::Matrix<double, window_size, poly_deg + 1> A;
-    Eigen::Matrix<double, window_size, dof> V;
+//     constexpr double dt = 1.0 / 72.0;
+//     Eigen::Matrix<double, window_size, poly_deg + 1> A;
+//     Eigen::Matrix<double, window_size, dof> V;
 
-    for (int i = 0; i < window_size; ++i)
-    {
-        double t = -dt * (window_size - 1 - i);
-        A(i, 0) = 1.0;
-        A(i, 1) = t;
-        A(i, 2) = t * t;
-        V.row(i) = pos_buffer[i];
-    }
+//     for (int i = 0; i < window_size; ++i)
+//     {
+//         double t = -dt * (window_size - 1 - i);
+//         A(i, 0) = 1.0;
+//         A(i, 1) = t;
+//         A(i, 2) = t * t;
+//         V.row(i) = pos_buffer[i];
+//     }
 
-    // Fit polynomial coefficients: coeffs = (AᵗA)⁻¹ AᵗV
-    Eigen::Matrix<double, poly_deg + 1, dof> coeffs = A.colPivHouseholderQr().solve(V);
+//     // Fit polynomial coefficients: coeffs = (AᵗA)⁻¹ AᵗV
+//     Eigen::Matrix<double, poly_deg + 1, dof> coeffs = A.colPivHouseholderQr().solve(V);
 
-    joint_vel = coeffs.row(1);          // First derivative at t = 0
-    joint_acc = 2.0 * coeffs.row(2);    // Second derivative at t = 0
-    return err;
-}
+//     joint_vel = coeffs.row(1);          // First derivative at t = 0
+//     joint_acc = 2.0 * coeffs.row(2);    // Second derivative at t = 0
+//     return err;
+// }

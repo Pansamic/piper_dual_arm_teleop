@@ -813,7 +813,7 @@ ErrorCode ArmModel::getShoulderJointPos(Eigen::Vector3d& shoulder_joint_pos, con
         }
     }
     int best_id = 0;
-    double min_movement = 10000;
+    double min_movement = std::numeric_limits<double>::max();
     for (int i = 0; i < result_count; ++i)
     {
         int greater = 1;
