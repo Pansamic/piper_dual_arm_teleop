@@ -43,14 +43,14 @@ TeleopTaskRunner::TeleopTaskRunner(std::shared_ptr<ArmInterface> interface, size
     left_arm_trajectory_buffer_(),
     right_arm_trajectory_buffer_(),
     channel_(this->io_context_, "/workspace/tmp/arm", "/workspace/tmp/arm"),
-    send_mq_(RingBuffer<whole_body_msg>{32}),
+    send_mq_(RingBuffer<nav_state_msg>{32}),
     recv_mq_(RingBuffer<whole_body_msg>{32})
 {
 }
 
 void TeleopTaskRunner::initialize()
 {
-    this->channel_.bind_message_queue("whole_body_sender", ParserType::Sender, this->send_mq_);
+    this->channel_.bind_message_queue("nav_state_sender", ParserType::Sender, this->send_mq_);
     this->channel_.bind_message_queue("whole_body_receiver", ParserType::Receiver, this->recv_mq_);
     this->channel_.enable_sender();
     this->channel_.enable_receiver();
@@ -92,6 +92,24 @@ void TeleopTaskRunner::run()
         if ( TerminationHandler::stop_requested.load() )
         {
             return;
+        }
+        /* If reaches report time, send joint position */
+        if ( (std::chrono::steady_clock::now() - report_time) >= std::chrono::milliseconds(20) )
+        {
+            nav_state_msg nav_msg = {0};
+            Eigen::Vector<double,ArmModel::num_dof_> joint_pos;
+            joint_pos = this->interface_->getLeftJointPosition();
+            for ( int i=0 ; i<ArmModel::num_dof_ ; i++)
+            {
+                nav_msg.left_joints[i] = joint_pos(i);
+            }
+            joint_pos = this->interface_->getRightJointPosition();
+            for ( int i=0 ; i<ArmModel::num_dof_ ; i++)
+            {
+                nav_msg.right_joints[i] = joint_pos(i);
+            }
+            this->send_mq_.enqueue(nav_msg);
+            report_time += std::chrono::milliseconds(20);
         }
         if ( this->recv_mq_.empty() )
         {
@@ -211,24 +229,6 @@ void TeleopTaskRunner::run()
                 this->right_arm_target_joint_pos_(3),this->right_arm_target_joint_pos_(4),this->right_arm_target_joint_pos_(5));
             this->planner_->setRightArmTargetJointPosition(this->right_arm_target_joint_pos_);
             this->right_arm_joint_state_history_.push(this->right_arm_target_joint_pos_);
-        }
-        /* If reaches report time, send joint position */
-        if ( (std::chrono::steady_clock::now() - report_time) >= std::chrono::milliseconds(20) )
-        {
-            nav_state_msg nav_msg = {0};
-            Eigen::Vector<double,ArmModel::num_dof_> joint_pos;
-            joint_pos = this->interface_->getLeftJointPosition();
-            for ( int i=0 ; i<ArmModel::num_dof_ ; i++)
-            {
-                nav_msg.left_joints[i] = joint_pos(i);
-            }
-            joint_pos = this->interface_->getRightJointPosition();
-            for ( int i=0 ; i<ArmModel::num_dof_ ; i++)
-            {
-                nav_msg.right_joints[i] = joint_pos(i);
-            }
-            this->send_mq_.enqueue(nav_msg);
-            report_time += std::chrono::milliseconds(20);
         }
     }
 }
