@@ -91,7 +91,7 @@ void processCommand(const std::vector<std::string>& args)
                 return;
             }
 
-            if (args.size() != 8)
+            if (args.size() != 9)
             {
                 std::cerr << "Expected 6 joint positions.\n";
                 return;
@@ -192,18 +192,31 @@ void enableArm(Arm arm)
         return;
     }
 
-    struct can_frame frame;
-    for (int i=0 ; i<10 ; i++)
+    struct can_frame send_frame;
+    struct can_frame recv_frame;
+    unsigned char activate = 0;
+    memset(&send_frame, 0, sizeof(send_frame));
+    send_frame.can_id = 0x471;
+    send_frame.can_dlc = 8;
+    send_frame.data[0] = 7; // Select all the actuators.
+    send_frame.data[1] = 0x02; // Enable
+    while ( activate != 0x7F )
     {
-        memset(&frame, 0, sizeof(frame));
-        frame.can_id = 0x471;
-        frame.can_dlc = 8;
-        frame.data[0] = 7; // Select all the actuators.
-        frame.data[1] = 0x02; // Enable
-        write(s, &frame, sizeof(struct can_frame));
-        sleep(0.05);
+        write(s, &send_frame, sizeof(struct can_frame));
+        for ( int i=0 ; i<20 ; i++ )
+        {
+            size_t nbytes = read(s, &recv_frame, sizeof(struct can_frame));
+            if ( nbytes == sizeof(struct can_frame) && recv_frame.can_id >= 0x261 && recv_frame.can_id <= 0x266 )
+            {
+                if ( recv_frame.data[5] & (1<<6) != 0 )
+                {
+                    activate |= (1<<(recv_frame.can_id-0x261));
+                }
+            }
+        }
     }
 }
+
 
 void disableArm(Arm arm)
 {
@@ -213,17 +226,28 @@ void disableArm(Arm arm)
         std::cerr << "CAN interface doesn't exist." << std::endl;
         return;
     }
-
-    struct can_frame frame;
-    for (int i=0 ; i<10 ; i++)
+    struct can_frame send_frame;
+    struct can_frame recv_frame;
+    unsigned char inactivate = 0;
+    memset(&send_frame, 0, sizeof(send_frame));
+    send_frame.can_id = 0x471;
+    send_frame.can_dlc = 8;
+    send_frame.data[0] = 7; // Select all the actuators.
+    send_frame.data[1] = 0x01; // Disable
+    while ( inactivate != 0x7F )
     {
-        memset(&frame, 0, sizeof(frame));
-        frame.can_id = 0x471;
-        frame.can_dlc = 8;
-        frame.data[0] = 7; // Select all the actuators.
-        frame.data[1] = 0x01; // Disable
-        write(s, &frame, sizeof(struct can_frame));
-        sleep(0.05);
+        write(s, &send_frame, sizeof(struct can_frame));
+        for ( int i=0 ; i<20 ; i++ )
+        {
+            size_t nbytes = read(s, &recv_frame, sizeof(struct can_frame));
+            if ( nbytes == sizeof(struct can_frame) && recv_frame.can_id >= 0x261 && recv_frame.can_id <= 0x266 )
+            {
+                if ( recv_frame.data[5] & (1<<6) == 0 )
+                {
+                    inactivate |= (1<<(recv_frame.can_id-0x261));
+                }
+            }
+        }
     }
 }
 
