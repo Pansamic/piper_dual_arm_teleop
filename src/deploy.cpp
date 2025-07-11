@@ -25,7 +25,7 @@ int main(int argv, char** argc)
     TerminationHandler::setup();
     /* Create simulation interface. */
     auto interface = std::make_shared<ArmHardwareInterface>();
-    if ( interface->start("can0", "can1") != true)
+    if ( interface->start("can1", "can2") != true)
     {
         LOG_ERROR("CAN interface initialization failed. Exiting...");
         return -1;
