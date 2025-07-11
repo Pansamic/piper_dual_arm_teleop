@@ -6,11 +6,11 @@ struct whole_body_msg {
   // mask explanation
   // enable: 1
   // disable: 0
-  // Control Enable | base control | left hand control | right hand control | base vel valid | left hand vel valid | right hand vel valid |
-  // padding
+  // high:Control Enable | base control | left hand control | right hand control | base vel valid | left hand vel valid | right hand vel valid |
+  // low: pose request | pose answer
   uint16_t mask;
   uint32_t cnt;
-  uint64_t time;        // timestamp unit: ns
+  uint64_t time;  // timestamp unit: ns
 
   vec4 base_pos;        // global position of baselink in FLU coordinate
   vec4 left_hand_pos;   // position of left hand relative to base in FLU coordinate

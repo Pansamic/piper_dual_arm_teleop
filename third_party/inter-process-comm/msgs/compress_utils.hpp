@@ -85,7 +85,7 @@ requires(std::is_arithmetic_v<ScalarType>&& N > 0) static inline size_t maxAbsIn
 
 template <typename ScalarType>
 static inline auto EncodeQuaternion(const ScalarType* data) {
-  constexpr ScalarType maxAbs = sqrt(2.0) * 0.5;
+  constexpr ScalarType maxAbs = 0.70710678118;
   size_t idx                  = maxAbsIndex<ScalarType, 4>(data);
   std::array<ScalarType, 3> rest_data;
   ScalarType sign = data[idx] >= 0 ? 1.0 : -1.0;
@@ -99,7 +99,7 @@ static inline auto EncodeQuaternion(const ScalarType* data) {
 
 template <typename ScalarType>
 static inline auto DecodeQuaternion(const uint32_t data, ScalarType* quat) -> void {
-  constexpr ScalarType maxAbs = sqrt(2.0) * 0.5;
+  constexpr ScalarType maxAbs = 0.70710678118;
   std::array<ScalarType, 3> recv_data;
   size_t idx                                         = data >> 30;
   std::tie(recv_data[0], recv_data[1], recv_data[2]) = Decode3D<ScalarType, 10>(data, maxAbs);

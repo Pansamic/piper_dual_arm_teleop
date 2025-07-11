@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #pragma once
+
 #include <iostream>
 #include <span>
 #include <variant>
@@ -26,11 +27,14 @@
 template <typename T>
 concept ValidParser = requires {
   typename T::DataType;
-  { T::parser_type } -> std::convertible_to<uint8_t>;
-  { T::header } -> std::convertible_to<uint16_t>;
-  { T::length } -> std::convertible_to<size_t>;
-  { T::name } -> std::convertible_to<std::string_view>;
+  {T::parser_type};
+  {T::header};
+  {T::length};
+  {T::name};
 }
+&&std::is_convertible_v<decltype(T::parser_type), uint8_t>
+&&std::is_convertible_v<decltype(T::header), uint16_t>
+&&std::is_convertible_v<decltype(T::name), std::string_view>
 &&((requires(std::span<std::byte> in, typename T::DataType out) {
      { T::Process(in, out) } -> std::same_as<bool>;
    })
@@ -62,7 +66,7 @@ public:
   }
 
   CommChannel(asio::io_context &io_context, std::string_view local_path, std::string_view remote_path) requires(Mode == ChannelMode::Unix)
-      : local_endpoint_(createEp(local_path)), remote_endpoint_(createEp(remote_path)), socket_(io_context), timer_(io_context) {
+      : local_endpoint_(createEp(local_path)), remote_endpoint_(UnixEp(std::string(remote_path))), socket_(io_context), timer_(io_context) {
     socket_.open();
     socket_.bind(local_endpoint_);
   }
@@ -85,7 +89,7 @@ public:
     bool mq_registered = (((Parsers::parser_type == ParserType::Receiver) && (recv_mq_map_.find(Parsers::name) != recv_mq_map_.end())) || ...);
     if (!mq_registered) return false;
 
-    EndpointType tmp_endpoint = remote_endpoint_;
+    tmp_endpoint_ = remote_endpoint_;
     this->socket_.async_receive_from(asio::buffer(recv_buffer_), remote_endpoint_,
                                      std::bind(&CommChannel::receiver_handler, this, std::placeholders::_1, std::placeholders::_2));
     return true;
@@ -94,7 +98,8 @@ public:
   bool enable_sender() {
     bool mq_registered
         = (((Parsers::parser_type == ParserType::Sender)
-            && (std::ranges::find_if(send_mq_vec_, [](const auto &curr_mq) { return curr_mq.first == Parsers::name; }) != send_mq_vec_.end()))
+            && (std::find_if(send_mq_vec_.begin(), send_mq_vec_.end(), [](const auto &curr_mq) { return curr_mq.first == Parsers::name; })
+                != send_mq_vec_.end()))
            || ...);
     if (!mq_registered) return false;
     timer_.async_wait(std::bind(&CommChannel::timer_handler, this, std::placeholders::_1));
@@ -115,7 +120,17 @@ private:
                               typename Parsers::DataType data;
                               curr_mq.second->dequeue(data);
                               Parsers::Process(data, buffer_view);
-                              this->socket_.async_send_to(asio::buffer(this->send_buffer_), this->remote_endpoint_,
+                              this->socket_.async_send_to(asio::buffer(this->send_buffer_, Parsers::length), this->remote_endpoint_,
+                                                          [](const asio::error_code &error, std::size_t bytes_transferred) {});
+                              return true;
+                            } else
+                              return false;
+                          } else if constexpr (Parsers::parser_type == ParserType::DirectSender) {
+                            if (curr_mq.first == Parsers::name) {
+                              typename Parsers::DataType data;
+                              curr_mq.second->dequeue(data);
+                              // Parsers::Process(data, buffer_view);
+                              this->socket_.async_send_to(asio::buffer(data), this->remote_endpoint_,
                                                           [](const asio::error_code &error, std::size_t bytes_transferred) {});
                               return true;
                             } else
@@ -147,6 +162,7 @@ private:
           if (header == Parsers::header) {
             Parsers::Process(buffer_view, recv_data);
           } else {
+            std::cerr<<"Header Match Failed! received: "<<header<<std::endl;
             return false;
           }
         } else {
@@ -162,20 +178,21 @@ private:
 
       // TODO: Add warning here
     }
-    EndpointType tmp_endpoint = remote_endpoint_;
-    this->socket_.async_receive_from(asio::buffer(recv_buffer_), tmp_endpoint,
+    tmp_endpoint_ = remote_endpoint_;
+    this->socket_.async_receive_from(asio::buffer(recv_buffer_), tmp_endpoint_,
                                      std::bind(&CommChannel::receiver_handler, this, std::placeholders::_1, std::placeholders::_2));
   }
 
   static UnixEp createEp(std::string_view sv) requires(Mode == ChannelMode::Unix) {
     std::remove(std::string(sv).c_str());
-    return UnixEp(sv);
+    return UnixEp(std::string(sv));
   }
 
   asio::steady_timer timer_;
   SocketType socket_;
   EndpointType local_endpoint_;
   EndpointType remote_endpoint_;
+  EndpointType tmp_endpoint_;
 
   std::vector<std::pair<std::string_view, MsgQueue *>> send_mq_vec_;
   std::unordered_map<std::string_view, MsgQueue *> recv_mq_map_;
