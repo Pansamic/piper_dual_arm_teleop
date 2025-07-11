@@ -154,7 +154,9 @@ void ArmHardwareInterface::setLeftJointControl(
     const Eigen::Vector<double,ArmModel::num_dof_>& joint_feedforward_torque)
 {
     std::lock_guard<std::mutex> lock(this->left_joints_mutex_);
-    setActuatorControl(this->left_can_socket_, joint_pos, joint_vel, joint_feedforward_torque);
+    // setActuatorControl(this->left_can_socket_, joint_pos, joint_vel, joint_feedforward_torque);
+    setJointPositionMode(this->left_can_socket_);
+    setActuatorPosition(this->left_can_socket_, joint_pos);
 }
 
 void ArmHardwareInterface::setRightJointControl(
@@ -163,7 +165,9 @@ void ArmHardwareInterface::setRightJointControl(
     const Eigen::Vector<double,ArmModel::num_dof_>& joint_feedforward_torque)
 {
     std::lock_guard<std::mutex> lock(this->right_joints_mutex_);
-    setActuatorControl(this->right_can_socket_, joint_pos, joint_vel, joint_feedforward_torque);
+    // setActuatorControl(this->right_can_socket_, joint_pos, joint_vel, joint_feedforward_torque);
+    setJointPositionMode(this->right_can_socket_);
+    setActuatorPosition(this->right_can_socket_, joint_pos);
 }
 
 void ArmHardwareInterface::setLeftGripperControl(const double& position, const double& torque)
@@ -174,6 +178,18 @@ void ArmHardwareInterface::setLeftGripperControl(const double& position, const d
 void ArmHardwareInterface::setRightGripperControl(const double& position, const double& torque)
 {
     setGripperControl(this->right_can_socket_, position, torque);
+}
+
+void ArmHardwareInterface::setLeftMocapPose(const Eigen::Vector3d& position, const Eigen::Quaterniond& orientation)
+{
+    /* Not implemented. */
+    return ;
+}
+
+void ArmHardwareInterface::setRightMocapPose(const Eigen::Vector3d& position, const Eigen::Quaterniond& orientation)
+{
+    /* Not implemented. */
+    return ;
 }
 
 const Eigen::Vector<double,ArmModel::num_dof_>& ArmHardwareInterface::getLeftJointPosition()
@@ -324,7 +340,7 @@ void ArmHardwareInterface::parseCanFrame(const int can_socket, struct can_frame*
     {
         if ( msg->data[0] != MODE_CAN )
         {
-            LOG_WARN("CAN mode error, expected MODE_CAN but got 0x{:02x}", msg->data[0]);
+            LOG_WARN("CAN mode error, expected MODE_CAN=1 but got 0x{:02x}", msg->data[0]);
         }
         switch ( msg->data[1] )
         {
@@ -573,8 +589,8 @@ void ArmHardwareInterface::setActuatorControl(
         sendControlMessage(can_socket, i,
             double2int16(joint_pos(i),-12.5,12.5,16),
             double2int16(joint_vel(i),-45.0,45.0,12),
-            double2int16(5.0,0.0,500.0,12),
-            double2int16(0.4,-5,5.0,12),
+            double2int16(10.0,0.0,500.0,12),
+            double2int16(0.8,-5,5.0,12),
             double2int8(joint_torque(i),-18.0,18.0,8)
        );
     }
