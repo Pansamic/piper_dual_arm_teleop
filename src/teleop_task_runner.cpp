@@ -12,8 +12,8 @@
 #include <teleop_task_runner.h>
 
 const Eigen::Vector3d TeleopTaskRunner::head_position_ = Eigen::Vector3d(0.5,0,1.0);
-const Eigen::Quaterniond TeleopTaskRunner::left_hand_orientation_offset_ = Eigen::Quaterniond(Eigen::AngleAxisd(M_PI, Eigen::Vector3d::UnitX()));
-const Eigen::Quaterniond TeleopTaskRunner::right_hand_orientation_offset_ = Eigen::Quaterniond(Eigen::AngleAxisd(M_PI, Eigen::Vector3d::UnitX()));
+const Eigen::Quaterniond TeleopTaskRunner::left_hand_orientation_offset_ = Eigen::Quaterniond(Eigen::AngleAxisd(M_PI/2, Eigen::Vector3d::UnitY()));
+const Eigen::Quaterniond TeleopTaskRunner::right_hand_orientation_offset_ = Eigen::Quaterniond(Eigen::AngleAxisd(M_PI/2, Eigen::Vector3d::UnitY()));
 const Eigen::Matrix4d TeleopTaskRunner::left_arm_base_transform_ = (Eigen::Matrix4d() << 
     0,  0,  1, 0.23805,
    -1,  0,  0, 0.19675,
@@ -123,10 +123,7 @@ void TeleopTaskRunner::run()
             this->scaleLeftHandPose(this->left_hand_target_pos_, this->left_hand_target_orientation_);
 
             /* Set motion capture object's position and orientation in simulator. */
-            // if ( std::dynamic_pointer_cast<ArmSimulationInterface>(this->interface_) )
-            // {
-            //     static_cast<ArmSimulationInterface*>(this->interface_.get())->setLeftMocapPose(this->left_hand_target_pos_, this->left_hand_target_orientation_);
-            // }
+            this->interface_->setLeftMocapPose(this->left_hand_target_pos_, this->left_hand_target_orientation_);
 
             /* Construct transformation matrix from orientation and position */
             this->left_hand_target_pose_.block<3,3>(0,0) = this->left_hand_target_orientation_.toRotationMatrix();
@@ -181,10 +178,7 @@ void TeleopTaskRunner::run()
             this->scaleRightHandPose(this->right_hand_target_pos_, this->right_hand_target_orientation_);
 
             /* Set motion capture object's position and orientation in simulator. */
-            // if ( std::dynamic_pointer_cast<ArmSimulationInterface>(this->interface_) )
-            // {
-            //     static_cast<ArmSimulationInterface*>(this->interface_.get())->setRightMocapPose(this->right_hand_target_pos_, this->right_hand_target_orientation_);
-            // }
+            this->interface_->setRightMocapPose(this->right_hand_target_pos_, this->right_hand_target_orientation_);
 
             /* Construct transformation matrix from orientation and position */
             this->right_hand_target_pose_.block<3,3>(0,0) = this->right_hand_target_orientation_.toRotationMatrix();
@@ -240,7 +234,7 @@ void TeleopTaskRunner::scaleLeftHandPose(Eigen::Vector3d& position, Eigen::Quate
     /* Add position offset because VR remote controller position is based on headset,
      * so the base position should be converted to the arm model base. */
     position += this->head_position_;
-    // orientation = orientation * this->left_hand_orientation_offset_;
+    orientation = orientation * this->left_hand_orientation_offset_;
 }
 
 void TeleopTaskRunner::scaleRightHandPose(Eigen::Vector3d& position, Eigen::Quaterniond& orientation)
@@ -250,7 +244,7 @@ void TeleopTaskRunner::scaleRightHandPose(Eigen::Vector3d& position, Eigen::Quat
     /* Add position offset because VR remote controller position is based on headset,
      * so the base position should be converted to the arm model base. */
     position += this->head_position_;
-    // orientation = orientation * this->right_hand_orientation_offset_;
+    orientation = orientation * this->right_hand_orientation_offset_;
 }
 
 bool TeleopTaskRunner::checkInvalidJointPosition(const Eigen::Vector<double,ArmModel::num_dof_>& joint_pos)
