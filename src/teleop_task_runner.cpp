@@ -42,7 +42,7 @@ TeleopTaskRunner::TeleopTaskRunner(std::shared_ptr<ArmInterface> interface, size
     right_arm_joint_state_history_(32),
     left_arm_trajectory_buffer_(),
     right_arm_trajectory_buffer_(),
-    channel_(this->io_context_, "/workspace/tmp/arm", "/workspace/tmp/arm"),
+    channel_(this->io_context_, "/workspace/tmp/arm_solve", "/workspace/tmp/arm_station"),
     send_mq_(RingBuffer<nav_state_msg>{32}),
     recv_mq_(RingBuffer<whole_body_msg>{32})
 {
