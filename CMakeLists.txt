@@ -33,6 +33,8 @@ target_link_libraries(deploy
     pthread
 )
 
+add_executable(tool src/tool.cpp)
+
 if(BUILD_TESTING)
     set(OpenGL_GL_PREFERENCE "GLVND")
     find_package(OpenGL REQUIRED)
