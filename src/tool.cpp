@@ -167,7 +167,7 @@ bool check(std::string if_name)
 
 int connect(Arm arm)
 {
-    std::string if_name = (arm == Arm::LEFT ? "can0" : "can1");
+    std::string if_name = (arm == Arm::LEFT ? "can1" : "can2");
     if ( !check(if_name) )
     {
         return -1;
