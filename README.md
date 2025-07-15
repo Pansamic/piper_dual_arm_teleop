@@ -16,7 +16,7 @@ Dual AgileX Piper 6-axis manipulator.
 
 ## description
 
-`can0` is for left arm;`can1` is for right arm.
+`can1` is for left arm;`can2` is for right arm.
 
 ## debug
 
@@ -32,3 +32,5 @@ Use script/plot_arm_pos_cmd.py to parse the joint positions commands to dual arm
 - [ ] Try gradient-based optimizer to solve for inverse kinematics.
 - [ ] Program terminated when simulator window is closed by user.
 - [ ] Separate inverse kinematics from arm_model.cpp to single header file.
+- [ ] Create a new controller called `ArmTaskSpaceController` and rename the current controller as `ArmJointSpaceController`.
+- [ ] Move impedance control logic from `arm_model.h` and `arm_model.cpp` to `ArmTaskSpaceController`.
