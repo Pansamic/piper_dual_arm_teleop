@@ -39,13 +39,13 @@ void ArmPlanner::stop()
     }
 }
 
-void ArmPlanner::setLeftArmTargetJointPosition(const Eigen::Vector<double,ArmModel::num_dof_>& joint_pos)
+void ArmPlanner::setLeftArmTargetJointPosition(const Eigen::Vector<double, PiperArmNumDof>& joint_pos)
 {
     std::lock_guard<std::mutex> lock(this->left_arm_target_joint_pos_mtx_);
     this->left_arm_target_joint_pos_ = joint_pos;
 }
 
-void ArmPlanner::setRightArmTargetJointPosition(const Eigen::Vector<double,ArmModel::num_dof_>& joint_pos)
+void ArmPlanner::setRightArmTargetJointPosition(const Eigen::Vector<double, PiperArmNumDof>& joint_pos)
 {
     std::lock_guard<std::mutex> lock(this->right_arm_target_joint_pos_mtx_);
     this->right_arm_target_joint_pos_ = joint_pos;
@@ -53,10 +53,10 @@ void ArmPlanner::setRightArmTargetJointPosition(const Eigen::Vector<double,ArmMo
 
 void ArmPlanner::planDualArmLinear(
     const std::chrono::steady_clock::time_point& start_timepoint,
-    const Eigen::Vector<double,ArmModel::num_dof_>& left_arm_begin,
-    const Eigen::Vector<double,ArmModel::num_dof_>& left_arm_end,
-    const Eigen::Vector<double,ArmModel::num_dof_>& right_arm_begin,
-    const Eigen::Vector<double,ArmModel::num_dof_>& right_arm_end)
+    const Eigen::Vector<double, PiperArmNumDof>& left_arm_begin,
+    const Eigen::Vector<double, PiperArmNumDof>& left_arm_end,
+    const Eigen::Vector<double, PiperArmNumDof>& right_arm_begin,
+    const Eigen::Vector<double, PiperArmNumDof>& right_arm_end)
 {
     /* Use L2-norm to determine the trajectory duration */
     double left_arm_duration = this->dt_plan_ + 3.0 * (left_arm_end - left_arm_begin).squaredNorm();

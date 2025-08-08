@@ -10,7 +10,7 @@
  */
 #include <Eigen/Core>
 #include <Eigen/Geometry>
-#include <arm_model.h>
+#include <piper_model.hpp>
 
 template<typename T>
 constexpr Eigen::Matrix<T,4,4> getTransformFromRotationAndTranslation(T x, T y, T z, T roll, T pitch, T yaw)
@@ -104,42 +104,42 @@ const std::array<JointType,ArmModel::num_link_> ArmModel::joint_type_ =
     // JOINT_PRISMATIC
 };
 
-const std::array<double,ArmModel::num_dof_> ArmModel::joint_pos_limit_low_ =
+const std::array<double, PiperArmNumDof> ArmModel::joint_pos_limit_low_ =
 {
     -2.618, 0, -2.967, -1.745, -1.22, -2.0944
 };
 
-const std::array<double,ArmModel::num_dof_> ArmModel::joint_pos_limit_high_ =
+const std::array<double, PiperArmNumDof> ArmModel::joint_pos_limit_high_ =
 {
     2.618, M_PI, 0, 1.745, 1.22, 2.0944
 };
 
-const std::array<double,ArmModel::num_dof_> ArmModel::joint_vel_limit_low_ =
+const std::array<double, PiperArmNumDof> ArmModel::joint_vel_limit_low_ =
 {
     -4*M_PI, -4*M_PI, -4*M_PI, -4*M_PI, -4*M_PI, -4*M_PI
 };
 
-const std::array<double,ArmModel::num_dof_> ArmModel::joint_vel_limit_high_ =
+const std::array<double, PiperArmNumDof> ArmModel::joint_vel_limit_high_ =
 {
     4*M_PI, 4*M_PI, 4*M_PI, 4*M_PI, 4*M_PI, 4*M_PI
 };
 
-const std::array<double,ArmModel::num_dof_> ArmModel::joint_acc_limit_low_ =
+const std::array<double, PiperArmNumDof> ArmModel::joint_acc_limit_low_ =
 {
     -2*M_PI, -2*M_PI, -2*M_PI, -2*M_PI, -2*M_PI, -2*M_PI
 };
 
-const std::array<double,ArmModel::num_dof_> ArmModel::joint_acc_limit_high_ =
+const std::array<double, PiperArmNumDof> ArmModel::joint_acc_limit_high_ =
 {
     2*M_PI, 2*M_PI, 2*M_PI, 2*M_PI, 2*M_PI, 2*M_PI
 };
 
-const std::array<double,ArmModel::num_dof_> ArmModel::joint_torque_limit_low_ =
+const std::array<double, PiperArmNumDof> ArmModel::joint_torque_limit_low_ =
 {
     -45, -45, -45, -30, -30, -20
 };
 
-const std::array<double,ArmModel::num_dof_> ArmModel::joint_torque_limit_high_ =
+const std::array<double, PiperArmNumDof> ArmModel::joint_torque_limit_high_ =
 {
     45, 45, 45, 30, 30, 20
 };
@@ -384,7 +384,7 @@ void ArmModel::getLinkComSpaceJacobianDot(
     }
 }
 
-Eigen::Matrix<double,ArmModel::num_dof_,ArmModel::num_dof_> ArmModel::getJointSpaceMassMatrix(
+Eigen::Matrix<double, PiperArmNumDof, PiperArmNumDof> ArmModel::getJointSpaceMassMatrix(
     const std::array<Eigen::Matrix4d,num_link_>& link_com_transform,
     const std::array<Eigen::Matrix<double,6,num_dof_>,num_link_>& link_com_jacobian) const
 {
@@ -413,7 +413,7 @@ Eigen::Matrix<double,ArmModel::num_dof_,ArmModel::num_dof_> ArmModel::getJointSp
     return generalized_mass_matrix;
 }
 
-Eigen::Matrix<double,ArmModel::num_dof_,ArmModel::num_dof_> ArmModel::getJointSpaceCoriolisMatrix(
+Eigen::Matrix<double, PiperArmNumDof, PiperArmNumDof> ArmModel::getJointSpaceCoriolisMatrix(
     const std::array<Eigen::Matrix4d,num_link_>& link_com_transform,
     const std::array<Eigen::Matrix<double,6,num_dof_>,num_link_>& link_com_jacobian,
     const std::array<Eigen::Matrix<double,6,num_dof_>,num_link_>& link_com_jacobian_dot,
@@ -457,10 +457,10 @@ Eigen::Matrix<double,ArmModel::num_dof_,ArmModel::num_dof_> ArmModel::getJointSp
 
     return centrifugal_coriolis_matrix;
 }
-Eigen::Vector<double,ArmModel::num_dof_> ArmModel::getJointSpaceGravityCompensate(
+Eigen::Vector<double, PiperArmNumDof> ArmModel::getJointSpaceGravityCompensate(
     const std::array<Eigen::Matrix<double,6,num_dof_>,num_link_>& link_com_jacobian) const
 {
-    Eigen::Vector<double,ArmModel::num_dof_> gravity_compensate;
+    Eigen::Vector<double, PiperArmNumDof> gravity_compensate;
 
     gravity_compensate.setZero();
 
@@ -532,7 +532,7 @@ void ArmModel::getTaskSpaceInverseDynamics(
     task_space_bias_force = (jacobian_inv_T * centrifugal_coriolis_matrix * jacobian_inv - task_space_mass_matrix * link_com_jacobian_dot[num_link_-1] * jacobian_inv) * twist + jacobian_inv_T * gravity_compensate;
 }
 
-Eigen::Vector<double,ArmModel::num_dof_> ArmModel::getImpedanceControl(
+Eigen::Vector<double, PiperArmNumDof> ArmModel::getImpedanceControl(
     const Eigen::Vector<double,num_dof_>& actual_joint_pos,
     const Eigen::Vector<double,num_dof_>& actual_joint_vel,
     const Eigen::Vector3d& target_pos,
@@ -643,7 +643,7 @@ Eigen::Vector<double,ArmModel::num_dof_> ArmModel::getImpedanceControl(
     return torque;
 }
 
-Eigen::Vector<double,ArmModel::num_dof_> ArmModel::getDiffIKControl(
+Eigen::Vector<double, PiperArmNumDof> ArmModel::getDiffIKControl(
     const Eigen::Vector<double,num_dof_>& actual_joint_pos,
     const Eigen::Vector<double,num_dof_>& actual_joint_vel,
     const Eigen::Vector3d& target_pos,
@@ -848,7 +848,7 @@ ErrorCode ArmModel::getShoulderJointPos(Eigen::Vector3d& shoulder_joint_pos, con
 }
 
 ErrorCode ArmModel::getInverseKinematics(
-    Eigen::Vector<double,ArmModel::num_dof_>& joint_pos,
+    Eigen::Vector<double, PiperArmNumDof>& joint_pos,
     const Eigen::Matrix4d& pose,
     const Eigen::Vector<double,6>& ref_conf) const
 {
@@ -1067,7 +1067,7 @@ ErrorCode ArmModel::getInverseKinematics(
 }
 
 ErrorCode ArmModel::getDampedLeastSquareInverseKinematics(
-    Eigen::Vector<double,ArmModel::num_dof_>& joint_pos, 
+    Eigen::Vector<double, PiperArmNumDof>& joint_pos, 
     const double lambda,
     const Eigen::Vector<double,6> tolerance,
     const size_t max_iteration,
@@ -1110,7 +1110,7 @@ ErrorCode ArmModel::getDampedLeastSquareInverseKinematics(
     {
         std::array<Eigen::Matrix4d,ArmModel::num_link_> link_transform;
         std::array<Eigen::Matrix4d,ArmModel::num_link_> link_com_transform;
-        std::array<Eigen::Matrix<double,6,ArmModel::num_dof_>,ArmModel::num_link_> link_jacobian;
+        std::array<Eigen::Matrix<double,6, PiperArmNumDof>,ArmModel::num_link_> link_jacobian;
         this->getTransform(link_transform, link_com_transform, best_joint_pos);
         this->getLinkSpaceJacobian(link_jacobian, link_transform);
         Eigen::Vector<double,6> pose_diff = getPoseDiff(pose, link_transform[5]);

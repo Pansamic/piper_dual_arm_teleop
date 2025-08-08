@@ -25,7 +25,7 @@
 #include <error_codes.h>
 #include <joint_state.h>
 #include <trajectory_buffer.hpp>
-#include <arm_model.h>
+#include <piper_model.hpp>
 #include <arm_controller.h>
 #include <arm_planner.h>
 #include <arm_interface.h>
@@ -66,8 +66,8 @@ private:
     Eigen::Matrix4d right_hand_target_pose_;
     Eigen::Quaterniond right_hand_actual_orientation_;
 
-    Eigen::Vector<double,ArmModel::num_dof_> left_arm_target_joint_pos_;
-    Eigen::Vector<double,ArmModel::num_dof_> right_arm_target_joint_pos_;
+    Eigen::Vector<double, PiperArmNumDof> left_arm_target_joint_pos_;
+    Eigen::Vector<double, PiperArmNumDof> right_arm_target_joint_pos_;
 
     double left_gripper_control_ = 0;
     double right_gripper_control_ = 0;
@@ -89,8 +89,8 @@ private:
     TrajectoryBuffer<ArmPlanner::num_plan_waypoint_> left_arm_trajectory_buffer_;
     TrajectoryBuffer<ArmPlanner::num_plan_waypoint_> right_arm_trajectory_buffer_;
 
-    RingBuffer<Eigen::Vector<double,ArmModel::num_dof_>> left_arm_joint_state_history_; 
-    RingBuffer<Eigen::Vector<double,ArmModel::num_dof_>> right_arm_joint_state_history_;
+    RingBuffer<Eigen::Vector<double, PiperArmNumDof>> left_arm_joint_state_history_; 
+    RingBuffer<Eigen::Vector<double, PiperArmNumDof>> right_arm_joint_state_history_;
 
     /**
      * @brief Program termination signal handler.
@@ -119,7 +119,7 @@ private:
      * @return true Joint position is valid.
      * @return false Joint position is invalid.
      */
-    bool checkInvalidJointPosition(const Eigen::Vector<double,ArmModel::num_dof_>& joint_pos);
+    bool checkInvalidJointPosition(const Eigen::Vector<double, PiperArmNumDof>& joint_pos);
 };
 
 #endif // __TELEOP_TASK_RUNNER_H__

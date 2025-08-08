@@ -12,7 +12,7 @@
 #define __ARM_PLANNER_H__
 
 #include <trajectory_buffer.hpp>
-#include <arm_model.h>
+#include <piper_model.hpp>
 
 class ArmPlanner
 {
@@ -36,8 +36,8 @@ public:
     ~ArmPlanner() = default;
     void start();
     void stop();
-    void setLeftArmTargetJointPosition(const Eigen::Vector<double,ArmModel::num_dof_>& joint_pos);
-    void setRightArmTargetJointPosition(const Eigen::Vector<double,ArmModel::num_dof_>& joint_pos);
+    void setLeftArmTargetJointPosition(const Eigen::Vector<double, PiperArmNumDof>& joint_pos);
+    void setRightArmTargetJointPosition(const Eigen::Vector<double, PiperArmNumDof>& joint_pos);
 private:
     bool running_;
     /* planner loop interval, unit: second */
@@ -45,9 +45,9 @@ private:
 
     /* This buffer is used to store */
     std::mutex left_arm_target_joint_pos_mtx_;
-    Eigen::Vector<double,ArmModel::num_dof_> left_arm_target_joint_pos_;
+    Eigen::Vector<double, PiperArmNumDof> left_arm_target_joint_pos_;
     std::mutex right_arm_target_joint_pos_mtx_;
-    Eigen::Vector<double,ArmModel::num_dof_> right_arm_target_joint_pos_;
+    Eigen::Vector<double, PiperArmNumDof> right_arm_target_joint_pos_;
 
     TrajectoryBuffer<num_plan_waypoint_>& left_arm_trajectory_buffer_;
     TrajectoryBuffer<num_plan_waypoint_>& right_arm_trajectory_buffer_;
@@ -61,10 +61,10 @@ private:
      */
     void planDualArmLinear(
         const std::chrono::steady_clock::time_point& start_timepoint,
-        const Eigen::Vector<double,ArmModel::num_dof_>& left_arm_begin,
-        const Eigen::Vector<double,ArmModel::num_dof_>& left_arm_end,
-        const Eigen::Vector<double,ArmModel::num_dof_>& right_arm_begin,
-        const Eigen::Vector<double,ArmModel::num_dof_>& right_arm_end);
+        const Eigen::Vector<double, PiperArmNumDof>& left_arm_begin,
+        const Eigen::Vector<double, PiperArmNumDof>& left_arm_end,
+        const Eigen::Vector<double, PiperArmNumDof>& right_arm_begin,
+        const Eigen::Vector<double, PiperArmNumDof>& right_arm_end);
 
     /**
      * @brief Covariant Hamilton Optimization Motion Planning.
@@ -74,8 +74,8 @@ private:
      * @todo Add obstacle expression and finish CHOMP algorithm.
      */
     void planDualArmCHOMP(
-        const Eigen::Vector<double,ArmModel::num_dof_>& begin,
-        const Eigen::Vector<double,ArmModel::num_dof_>& end);
+        const Eigen::Vector<double, PiperArmNumDof>& begin,
+        const Eigen::Vector<double, PiperArmNumDof>& end);
 
     void threadPlan(void);
 };

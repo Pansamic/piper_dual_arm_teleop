@@ -21,7 +21,7 @@
 #include <sys/ioctl.h>
 #include <net/if.h>
 #include <Eigen/Core>
-#include <arm_model.h>
+#include <piper_model.hpp>
 #include <arm_interface.h>
 
 class ArmHardwareInterface final : public ArmInterface
@@ -32,25 +32,25 @@ public:
     bool start(const char* left_arm_can_name, const char* right_arm_can_name);
     void stop();
     void setLeftJointControl(
-        const Eigen::Vector<double,ArmModel::num_dof_>& joint_pos,
-        const Eigen::Vector<double,ArmModel::num_dof_>& joint_vel,
-        const Eigen::Vector<double,ArmModel::num_dof_>& joint_feedforward_torque) override;
+        const Eigen::Vector<double, PiperArmNumDof>& joint_pos,
+        const Eigen::Vector<double, PiperArmNumDof>& joint_vel,
+        const Eigen::Vector<double, PiperArmNumDof>& joint_feedforward_torque) override;
     void setLeftGripperControl(const double& position, const double& torque) override;
     void setLeftMocapPose(const Eigen::Vector3d& position, const Eigen::Quaterniond& orientation) override;
     void setRightJointControl(
-        const Eigen::Vector<double,ArmModel::num_dof_>& joint_pos,
-        const Eigen::Vector<double,ArmModel::num_dof_>& joint_vel,
-        const Eigen::Vector<double,ArmModel::num_dof_>& joint_feedforward_torque) override;
+        const Eigen::Vector<double, PiperArmNumDof>& joint_pos,
+        const Eigen::Vector<double, PiperArmNumDof>& joint_vel,
+        const Eigen::Vector<double, PiperArmNumDof>& joint_feedforward_torque) override;
     void setRightGripperControl(const double& position, const double& torque) override;
     void setRightMocapPose(const Eigen::Vector3d& position, const Eigen::Quaterniond& orientation) override;
-    const Eigen::Vector<double,ArmModel::num_dof_>& getLeftJointPosition() override;
-    const Eigen::Vector<double,ArmModel::num_dof_>& getLeftJointVelocity() override;
-    const Eigen::Vector<double,ArmModel::num_dof_>& getLeftJointAcceleration() override;
-    const Eigen::Vector<double,ArmModel::num_dof_>& getLeftJointTorque() override;
-    const Eigen::Vector<double,ArmModel::num_dof_>& getRightJointPosition() override;
-    const Eigen::Vector<double,ArmModel::num_dof_>& getRightJointVelocity() override;
-    const Eigen::Vector<double,ArmModel::num_dof_>& getRightJointAcceleration() override;
-    const Eigen::Vector<double,ArmModel::num_dof_>& getRightJointTorque() override;
+    const Eigen::Vector<double, PiperArmNumDof>& getLeftJointPosition() override;
+    const Eigen::Vector<double, PiperArmNumDof>& getLeftJointVelocity() override;
+    const Eigen::Vector<double, PiperArmNumDof>& getLeftJointAcceleration() override;
+    const Eigen::Vector<double, PiperArmNumDof>& getLeftJointTorque() override;
+    const Eigen::Vector<double, PiperArmNumDof>& getRightJointPosition() override;
+    const Eigen::Vector<double, PiperArmNumDof>& getRightJointVelocity() override;
+    const Eigen::Vector<double, PiperArmNumDof>& getRightJointAcceleration() override;
+    const Eigen::Vector<double, PiperArmNumDof>& getRightJointTorque() override;
 
 private:
     enum ArmControlMode
@@ -141,25 +141,25 @@ private:
     std::mutex left_joints_mutex_;
     std::mutex right_joints_mutex_;
 
-    std::array<float,ArmModel::num_dof_> left_arm_actuator_voltage_;
-    std::array<int16_t,ArmModel::num_dof_> left_arm_actuator_temperature_;
-    std::array<int8_t,ArmModel::num_dof_> left_arm_motor_temperature_;
-    std::array<uint8_t,ArmModel::num_dof_> left_arm_actuator_status_;
+    std::array<float, PiperArmNumDof> left_arm_actuator_voltage_;
+    std::array<int16_t, PiperArmNumDof> left_arm_actuator_temperature_;
+    std::array<int8_t, PiperArmNumDof> left_arm_motor_temperature_;
+    std::array<uint8_t, PiperArmNumDof> left_arm_actuator_status_;
 
-    std::array<float,ArmModel::num_dof_> right_arm_actuator_voltage_;
-    std::array<int16_t,ArmModel::num_dof_> right_arm_actuator_temperature_;
-    std::array<int8_t,ArmModel::num_dof_> right_arm_motor_temperature_;
-    std::array<uint8_t,ArmModel::num_dof_> right_arm_actuator_status_;
+    std::array<float, PiperArmNumDof> right_arm_actuator_voltage_;
+    std::array<int16_t, PiperArmNumDof> right_arm_actuator_temperature_;
+    std::array<int8_t, PiperArmNumDof> right_arm_motor_temperature_;
+    std::array<uint8_t, PiperArmNumDof> right_arm_actuator_status_;
 
-    Eigen::Vector<double, ArmModel::num_dof_> left_actual_joint_pos_;
-    Eigen::Vector<double, ArmModel::num_dof_> left_actual_joint_vel_;
-    Eigen::Vector<double, ArmModel::num_dof_> left_actual_joint_acc_;
-    Eigen::Vector<double, ArmModel::num_dof_> left_actual_joint_torq_;
+    Eigen::Vector<double,  PiperArmNumDof> left_actual_joint_pos_;
+    Eigen::Vector<double,  PiperArmNumDof> left_actual_joint_vel_;
+    Eigen::Vector<double,  PiperArmNumDof> left_actual_joint_acc_;
+    Eigen::Vector<double,  PiperArmNumDof> left_actual_joint_torq_;
 
-    Eigen::Vector<double, ArmModel::num_dof_> right_actual_joint_pos_;
-    Eigen::Vector<double, ArmModel::num_dof_> right_actual_joint_vel_;
-    Eigen::Vector<double, ArmModel::num_dof_> right_actual_joint_acc_;
-    Eigen::Vector<double, ArmModel::num_dof_> right_actual_joint_torq_;
+    Eigen::Vector<double,  PiperArmNumDof> right_actual_joint_pos_;
+    Eigen::Vector<double,  PiperArmNumDof> right_actual_joint_vel_;
+    Eigen::Vector<double,  PiperArmNumDof> right_actual_joint_acc_;
+    Eigen::Vector<double,  PiperArmNumDof> right_actual_joint_torq_;
 
     void parseCanFrame(const int can_socket, struct can_frame* can_frame);
 
@@ -188,10 +188,10 @@ private:
     void disableActuators(const int can_socket) const;
     void setActuatorControl(
         const int can_socket,
-        const Eigen::Vector<double,ArmModel::num_dof_>& joint_pos,
-        const Eigen::Vector<double,ArmModel::num_dof_>& joint_vel,
-        const Eigen::Vector<double,ArmModel::num_dof_>& joint_torque) const;
-    void setActuatorPosition(const int can_socket, const Eigen::Vector<double,ArmModel::num_dof_>& joint_pos) const;
+        const Eigen::Vector<double, PiperArmNumDof>& joint_pos,
+        const Eigen::Vector<double, PiperArmNumDof>& joint_vel,
+        const Eigen::Vector<double, PiperArmNumDof>& joint_torque) const;
+    void setActuatorPosition(const int can_socket, const Eigen::Vector<double, PiperArmNumDof>& joint_pos) const;
     void setEndEffectorPose(const int can_socket, const Eigen::Vector3d& pos, const Eigen::Quaterniond& orientation) const;
     void setGripperCurrentAsZero(const int can_socket) const;
     void setGripperControl(const int can_socket, const double position, const double torque) const;

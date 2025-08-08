@@ -10,7 +10,7 @@
  */
 #include <log.hpp>
 #include <termination.h>
-#include <arm_model.h>
+#include <piper_model.hpp>
 #include <arm_hardware_interface.h>
 #include <arm_planner.h>
 #include <teleop_task_runner.h>

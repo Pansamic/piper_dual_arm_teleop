@@ -143,7 +143,7 @@ public:
         ddB(2) = 6 * (2 - 6 * u);
         ddB(3) = 6 * u;
 
-        Eigen::Matrix<double, ArmModel::num_dof_, COEFF_COUNT> P;
+        Eigen::Matrix<double,  PiperArmNumDof, COEFF_COUNT> P;
         for (size_t j = 0; j < COEFF_COUNT; ++j)
         {
             P.col(j) = buf->buffer[seg_idx + j].state.joint_pos;

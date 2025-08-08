@@ -16,7 +16,7 @@ add_definitions(
 add_executable(deploy
     src/arm_controller.cpp
     src/arm_hardware_interface.cpp
-    src/arm_model.cpp
+    src/arm_ik.cpp
     src/arm_planner.cpp
     src/deploy.cpp
     src/teleop_task_runner.cpp
@@ -33,7 +33,12 @@ target_link_libraries(deploy
     pthread
 )
 
-add_executable(tool src/tool.cpp)
+# add_executable(tool src/tool.cpp)
+# add_executable(test src/test.cpp)
+# target_include_directories(test PRIVATE
+#     include
+#     third_party/eigen-3.4.0
+# )
 
 if(BUILD_TESTING)
     set(OpenGL_GL_PREFERENCE "GLVND")
@@ -41,7 +46,7 @@ if(BUILD_TESTING)
     find_package(glfw3 REQUIRED)
     add_executable(simulate
         src/arm_controller.cpp
-        src/arm_model.cpp
+        src/arm_ik.cpp
         src/arm_planner.cpp
         src/arm_simulation_interface.cpp
         src/simulate.cpp

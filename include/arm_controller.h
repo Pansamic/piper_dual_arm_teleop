@@ -16,13 +16,14 @@
 #include <itc/backend/RingBuf.hpp>
 #include <arm_planner.h>
 #include <arm_interface.h>
+#include <piper_model.hpp>
 
 class ArmController
 {
 public:
     ArmController(
-        std::shared_ptr<ArmModel> left_arm_model,
-        std::shared_ptr<ArmModel> right_arm_model,
+        std::shared_ptr<RigidBodyTree<double, PiperArmNumDof>> left_arm_model,
+        std::shared_ptr<RigidBodyTree<double, PiperArmNumDof>> right_arm_model,
         std::shared_ptr<ArmInterface> interface,
         TrajectoryBuffer<ArmPlanner::num_plan_waypoint_>& left_arm_trajectory_buffer,
         TrajectoryBuffer<ArmPlanner::num_plan_waypoint_>& right_arm_trajectory_buffer,
@@ -37,8 +38,8 @@ private:
     std::shared_ptr<ArmInterface> interface_;
 
     /* Left and right arm model, including kinematics and dynamics */
-    std::shared_ptr<ArmModel> left_arm_model_;
-    std::shared_ptr<ArmModel> right_arm_model_;
+    std::shared_ptr<RigidBodyTree<double, PiperArmNumDof>> left_arm_model_;
+    std::shared_ptr<RigidBodyTree<double, PiperArmNumDof>> right_arm_model_;
 
     /* Target joint state buffer to store control sequence */
     TrajectoryBuffer<ArmPlanner::num_plan_waypoint_>& left_arm_trajectory_buffer_;

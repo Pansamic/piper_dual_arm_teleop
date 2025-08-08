@@ -97,14 +97,14 @@ void TeleopTaskRunner::run()
         if ( (std::chrono::steady_clock::now() - report_time) >= std::chrono::milliseconds(20) )
         {
             nav_state_msg nav_msg = {0};
-            Eigen::Vector<double,ArmModel::num_dof_> joint_pos;
+            Eigen::Vector<double, PiperArmNumDof> joint_pos;
             joint_pos = this->interface_->getLeftJointPosition();
-            for ( int i=0 ; i<ArmModel::num_dof_ ; i++)
+            for ( int i=0 ; i< PiperArmNumDof ; i++)
             {
                 nav_msg.left_joints[i] = joint_pos(i);
             }
             joint_pos = this->interface_->getRightJointPosition();
-            for ( int i=0 ; i<ArmModel::num_dof_ ; i++)
+            for ( int i=0 ; i< PiperArmNumDof ; i++)
             {
                 nav_msg.right_joints[i] = joint_pos(i);
             }
@@ -158,7 +158,7 @@ void TeleopTaskRunner::run()
             this->interface_->setLeftGripperControl(0.07 - 0.07 * msg.left_grip, 0);
             this->interface_->setRightGripperControl(0.07 - 0.07 * msg.right_grip, 0);
             /* Get least damped inverse kinematics */
-            err = this->left_arm_model_->getDampedLeastSquareInverseKinematics(this->left_arm_target_joint_pos_,
+            err = getDampedLeastSquareInverseKinematics(this->left_arm_target_joint_pos_,
                 0.1, Eigen::Vector<double,6>(0.05,0.05,0.05,0.1,0.1,0.1), 200, this->left_hand_target_pose_, this->interface_->getLeftJointPosition());
             if ( err == NoResult )
             {
@@ -267,7 +267,7 @@ void TeleopTaskRunner::scaleRightHandPose(Eigen::Vector3d& position, Eigen::Quat
     orientation = orientation * this->right_hand_orientation_offset_;
 }
 
-bool TeleopTaskRunner::checkInvalidJointPosition(const Eigen::Vector<double,ArmModel::num_dof_>& joint_pos)
+bool TeleopTaskRunner::checkInvalidJointPosition(const Eigen::Vector<double, PiperArmNumDof>& joint_pos)
 {
     // for ( auto it=this->left_arm_joint_state_history_.crbegin() ; it!=this->left_arm_joint_state_history_.crend() ; ++it )
     // {

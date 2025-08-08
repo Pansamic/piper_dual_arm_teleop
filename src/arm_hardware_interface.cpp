@@ -20,14 +20,14 @@
  */
 ArmHardwareInterface::ArmHardwareInterface():
     left_can_socket_(-1), right_can_socket_(-1), running_(false),
-    left_actual_joint_pos_(Eigen::Vector<double,ArmModel::num_dof_>::Zero()),
-    left_actual_joint_vel_(Eigen::Vector<double,ArmModel::num_dof_>::Zero()),
-    left_actual_joint_acc_(Eigen::Vector<double,ArmModel::num_dof_>::Zero()),
-    left_actual_joint_torq_(Eigen::Vector<double,ArmModel::num_dof_>::Zero()),
-    right_actual_joint_pos_(Eigen::Vector<double,ArmModel::num_dof_>::Zero()),
-    right_actual_joint_vel_(Eigen::Vector<double,ArmModel::num_dof_>::Zero()),
-    right_actual_joint_acc_(Eigen::Vector<double,ArmModel::num_dof_>::Zero()),
-    right_actual_joint_torq_(Eigen::Vector<double,ArmModel::num_dof_>::Zero())
+    left_actual_joint_pos_(Eigen::Vector<double, PiperArmNumDof>::Zero()),
+    left_actual_joint_vel_(Eigen::Vector<double, PiperArmNumDof>::Zero()),
+    left_actual_joint_acc_(Eigen::Vector<double, PiperArmNumDof>::Zero()),
+    left_actual_joint_torq_(Eigen::Vector<double, PiperArmNumDof>::Zero()),
+    right_actual_joint_pos_(Eigen::Vector<double, PiperArmNumDof>::Zero()),
+    right_actual_joint_vel_(Eigen::Vector<double, PiperArmNumDof>::Zero()),
+    right_actual_joint_acc_(Eigen::Vector<double, PiperArmNumDof>::Zero()),
+    right_actual_joint_torq_(Eigen::Vector<double, PiperArmNumDof>::Zero())
 {
 
 }
@@ -149,9 +149,9 @@ void ArmHardwareInterface::stop()
     LOG_INFO("Piper Arm Hardware Interface is stopped.");
 }
 void ArmHardwareInterface::setLeftJointControl(
-    const Eigen::Vector<double,ArmModel::num_dof_>& joint_pos,
-    const Eigen::Vector<double,ArmModel::num_dof_>& joint_vel,
-    const Eigen::Vector<double,ArmModel::num_dof_>& joint_feedforward_torque)
+    const Eigen::Vector<double, PiperArmNumDof>& joint_pos,
+    const Eigen::Vector<double, PiperArmNumDof>& joint_vel,
+    const Eigen::Vector<double, PiperArmNumDof>& joint_feedforward_torque)
 {
     std::lock_guard<std::mutex> lock(this->left_joints_mutex_);
     // setActuatorControl(this->left_can_socket_, joint_pos, joint_vel, joint_feedforward_torque);
@@ -160,9 +160,9 @@ void ArmHardwareInterface::setLeftJointControl(
 }
 
 void ArmHardwareInterface::setRightJointControl(
-    const Eigen::Vector<double,ArmModel::num_dof_>& joint_pos,
-    const Eigen::Vector<double,ArmModel::num_dof_>& joint_vel,
-    const Eigen::Vector<double,ArmModel::num_dof_>& joint_feedforward_torque)
+    const Eigen::Vector<double, PiperArmNumDof>& joint_pos,
+    const Eigen::Vector<double, PiperArmNumDof>& joint_vel,
+    const Eigen::Vector<double, PiperArmNumDof>& joint_feedforward_torque)
 {
     std::lock_guard<std::mutex> lock(this->right_joints_mutex_);
     // setActuatorControl(this->right_can_socket_, joint_pos, joint_vel, joint_feedforward_torque);
@@ -192,49 +192,49 @@ void ArmHardwareInterface::setRightMocapPose(const Eigen::Vector3d& position, co
     return ;
 }
 
-const Eigen::Vector<double,ArmModel::num_dof_>& ArmHardwareInterface::getLeftJointPosition()
+const Eigen::Vector<double, PiperArmNumDof>& ArmHardwareInterface::getLeftJointPosition()
 {
     std::lock_guard<std::mutex> lock(this->left_joints_mutex_);
     return this->left_actual_joint_pos_;
 }
 
-const Eigen::Vector<double,ArmModel::num_dof_>& ArmHardwareInterface::getLeftJointVelocity()
+const Eigen::Vector<double, PiperArmNumDof>& ArmHardwareInterface::getLeftJointVelocity()
 {
     std::lock_guard<std::mutex> lock(this->left_joints_mutex_);
     return this->left_actual_joint_vel_;
 }
 
-const Eigen::Vector<double,ArmModel::num_dof_>& ArmHardwareInterface::getLeftJointAcceleration()
+const Eigen::Vector<double, PiperArmNumDof>& ArmHardwareInterface::getLeftJointAcceleration()
 {
     std::lock_guard<std::mutex> lock(this->left_joints_mutex_);
     return this->left_actual_joint_acc_;
 }
 
-const Eigen::Vector<double,ArmModel::num_dof_>& ArmHardwareInterface::getLeftJointTorque()
+const Eigen::Vector<double, PiperArmNumDof>& ArmHardwareInterface::getLeftJointTorque()
 {
     std::lock_guard<std::mutex> lock(this->left_joints_mutex_);
     return this->left_actual_joint_torq_;
 }
 
-const Eigen::Vector<double,ArmModel::num_dof_>& ArmHardwareInterface::getRightJointPosition()
+const Eigen::Vector<double, PiperArmNumDof>& ArmHardwareInterface::getRightJointPosition()
 {
     std::lock_guard<std::mutex> lock(this->right_joints_mutex_);
     return this->right_actual_joint_pos_;
 }
 
-const Eigen::Vector<double,ArmModel::num_dof_>& ArmHardwareInterface::getRightJointVelocity()
+const Eigen::Vector<double, PiperArmNumDof>& ArmHardwareInterface::getRightJointVelocity()
 {
     std::lock_guard<std::mutex> lock(this->right_joints_mutex_);
     return this->right_actual_joint_vel_;
 }
 
-const Eigen::Vector<double,ArmModel::num_dof_>& ArmHardwareInterface::getRightJointAcceleration()
+const Eigen::Vector<double, PiperArmNumDof>& ArmHardwareInterface::getRightJointAcceleration()
 {
     std::lock_guard<std::mutex> lock(this->right_joints_mutex_);
     return this->right_actual_joint_acc_;
 }
 
-const Eigen::Vector<double,ArmModel::num_dof_>& ArmHardwareInterface::getRightJointTorque()
+const Eigen::Vector<double, PiperArmNumDof>& ArmHardwareInterface::getRightJointTorque()
 {
     std::lock_guard<std::mutex> lock(this->right_joints_mutex_);
     return this->right_actual_joint_torq_;
@@ -571,9 +571,9 @@ void ArmHardwareInterface::disableActuators(const int can_socket) const
 
 void ArmHardwareInterface::setActuatorControl(
     const int can_socket,
-    const Eigen::Vector<double,ArmModel::num_dof_>& joint_pos,
-    const Eigen::Vector<double,ArmModel::num_dof_>& joint_vel,
-    const Eigen::Vector<double,ArmModel::num_dof_>& joint_torque) const
+    const Eigen::Vector<double, PiperArmNumDof>& joint_pos,
+    const Eigen::Vector<double, PiperArmNumDof>& joint_vel,
+    const Eigen::Vector<double, PiperArmNumDof>& joint_torque) const
 {
     auto double2int16 = [](double x, double min, double max, uint8_t bits) -> int16_t
     {

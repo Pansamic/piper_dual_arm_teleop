@@ -66,9 +66,9 @@ void ArmSimulationInterface::stop()
 }
 
 void ArmSimulationInterface::setLeftJointControl(
-    const Eigen::Vector<double,ArmModel::num_dof_>& joint_pos,
-    const Eigen::Vector<double,ArmModel::num_dof_>& joint_vel,
-    const Eigen::Vector<double,ArmModel::num_dof_>& joint_feedforward_torque)
+    const Eigen::Vector<double, PiperArmNumDof>& joint_pos,
+    const Eigen::Vector<double, PiperArmNumDof>& joint_vel,
+    const Eigen::Vector<double, PiperArmNumDof>& joint_feedforward_torque)
 {
     std::lock_guard(this->left_arm_mutex_);
     this->left_arm_target_state_.joint_pos = joint_pos;
@@ -77,9 +77,9 @@ void ArmSimulationInterface::setLeftJointControl(
 }
 
 void ArmSimulationInterface::setRightJointControl(
-    const Eigen::Vector<double,ArmModel::num_dof_>& joint_pos,
-    const Eigen::Vector<double,ArmModel::num_dof_>& joint_vel,
-    const Eigen::Vector<double,ArmModel::num_dof_>& joint_feedforward_torque)
+    const Eigen::Vector<double, PiperArmNumDof>& joint_pos,
+    const Eigen::Vector<double, PiperArmNumDof>& joint_vel,
+    const Eigen::Vector<double, PiperArmNumDof>& joint_feedforward_torque)
 {
     std::lock_guard(this->right_arm_mutex_);
     this->right_arm_target_state_.joint_pos = joint_pos;
@@ -101,49 +101,49 @@ void ArmSimulationInterface::setRightGripperControl(const double& position, cons
     this->d->ctrl[15] = -position/2.0;
 }
 
-const Eigen::Vector<double,ArmModel::num_dof_>& ArmSimulationInterface::getLeftJointPosition()
+const Eigen::Vector<double, PiperArmNumDof>& ArmSimulationInterface::getLeftJointPosition()
 {
     std::lock_guard<std::mutex> lock(this->left_arm_mutex_);
     return this->left_arm_target_state_.joint_pos;
 }
 
-const Eigen::Vector<double,ArmModel::num_dof_>& ArmSimulationInterface::getLeftJointVelocity()
+const Eigen::Vector<double, PiperArmNumDof>& ArmSimulationInterface::getLeftJointVelocity()
 {
     std::lock_guard<std::mutex> lock(this->left_arm_mutex_);
     return this->left_arm_target_state_.joint_vel;
 }
 
-const Eigen::Vector<double,ArmModel::num_dof_>& ArmSimulationInterface::getLeftJointAcceleration()
+const Eigen::Vector<double, PiperArmNumDof>& ArmSimulationInterface::getLeftJointAcceleration()
 {
     std::lock_guard<std::mutex> lock(this->left_arm_mutex_);
     return this->left_arm_target_state_.joint_acc;
 }
 
-const Eigen::Vector<double,ArmModel::num_dof_>& ArmSimulationInterface::getLeftJointTorque()
+const Eigen::Vector<double, PiperArmNumDof>& ArmSimulationInterface::getLeftJointTorque()
 {
     std::lock_guard<std::mutex> lock(this->left_arm_mutex_);
     return this->left_arm_target_state_.joint_torq;
 }
 
-const Eigen::Vector<double,ArmModel::num_dof_>& ArmSimulationInterface::getRightJointPosition()
+const Eigen::Vector<double, PiperArmNumDof>& ArmSimulationInterface::getRightJointPosition()
 {
     std::lock_guard<std::mutex> lock(this->right_arm_mutex_);
     return this->right_arm_target_state_.joint_pos;
 }
 
-const Eigen::Vector<double,ArmModel::num_dof_>& ArmSimulationInterface::getRightJointVelocity()
+const Eigen::Vector<double, PiperArmNumDof>& ArmSimulationInterface::getRightJointVelocity()
 {
     std::lock_guard<std::mutex> lock(this->right_arm_mutex_);
     return this->right_arm_target_state_.joint_vel;
 }
 
-const Eigen::Vector<double,ArmModel::num_dof_>& ArmSimulationInterface::getRightJointAcceleration()
+const Eigen::Vector<double, PiperArmNumDof>& ArmSimulationInterface::getRightJointAcceleration()
 {
     std::lock_guard<std::mutex> lock(this->right_arm_mutex_);
     return this->right_arm_target_state_.joint_acc;
 }
 
-const Eigen::Vector<double,ArmModel::num_dof_>& ArmSimulationInterface::getRightJointTorque()
+const Eigen::Vector<double, PiperArmNumDof>& ArmSimulationInterface::getRightJointTorque()
 {
     std::lock_guard<std::mutex> lock(this->right_arm_mutex_);
     return this->right_arm_target_state_.joint_torq;
@@ -175,19 +175,19 @@ void ArmSimulationInterface::setRightMocapPose(const Eigen::Vector3d& position, 
 
 void ArmSimulationInterface::setJointPDControl()
 {
-    Eigen::Vector<double, ArmModel::num_dof_> left_control =
+    Eigen::Vector<double,  PiperArmNumDof> left_control =
         this->joint_kp_ * (this->left_arm_target_state_.joint_pos - this->left_arm_actual_state_.joint_pos) + 
         this->joint_kd_ * (this->left_arm_target_state_.joint_vel - this->left_arm_actual_state_.joint_vel) +
         this->left_arm_target_state_.joint_torq;
-    Eigen::Vector<double, ArmModel::num_dof_> right_control =
+    Eigen::Vector<double,  PiperArmNumDof> right_control =
         this->joint_kp_ * (this->right_arm_target_state_.joint_pos - this->right_arm_actual_state_.joint_pos) + 
         this->joint_kd_ * (this->right_arm_target_state_.joint_vel - this->right_arm_actual_state_.joint_vel) +
         this->right_arm_target_state_.joint_torq;
 
-    for ( int i=0 ; i<ArmModel::num_dof_ ; i++ )
+    for ( int i=0 ; i< PiperArmNumDof ; i++ )
     {
         this->d->ctrl[i] = left_control[i];
-        this->d->ctrl[i+ArmModel::num_dof_+1] = right_control[i]; // +1 for left gripper joint
+        this->d->ctrl[i+ PiperArmNumDof+1] = right_control[i]; // +1 for left gripper joint
     }
     LOG_DEBUG("Left arm target joint position:{:.4f},{:.4f},{:.4f},{:.4f},{:.4f},{:.4f}",
         this->left_arm_target_state_.joint_pos(0),this->left_arm_target_state_.joint_pos(1),this->left_arm_target_state_.joint_pos(2),
@@ -385,16 +385,16 @@ void ArmSimulationInterface::physicsLoop()
                         this->sim_->speed_changed = false;
 
                         // run single step, let next iteration deal with timing
-                        for ( int i=0 ; i<ArmModel::num_dof_ ; i++ )
+                        for ( int i=0 ; i< PiperArmNumDof ; i++ )
                         {
                             this->left_arm_actual_state_.joint_pos(i) = this->d->qpos[i];
-                            this->right_arm_actual_state_.joint_pos(i) = this->d->qpos[i+ArmModel::num_dof_+2];  // +2 to skip left gripper joint
+                            this->right_arm_actual_state_.joint_pos(i) = this->d->qpos[i+ PiperArmNumDof+2];  // +2 to skip left gripper joint
                             this->left_arm_actual_state_.joint_vel(i) = this->d->qvel[i];
-                            this->right_arm_actual_state_.joint_vel(i) = this->d->qvel[i+ArmModel::num_dof_+2];  // +2 to skip left gripper joint
+                            this->right_arm_actual_state_.joint_vel(i) = this->d->qvel[i+ PiperArmNumDof+2];  // +2 to skip left gripper joint
                             this->left_arm_actual_state_.joint_acc(i) = this->d->qacc[i];
-                            this->right_arm_actual_state_.joint_acc(i) = this->d->qacc[i+ArmModel::num_dof_+2];  // +2 to skip left gripper joint
+                            this->right_arm_actual_state_.joint_acc(i) = this->d->qacc[i+ PiperArmNumDof+2];  // +2 to skip left gripper joint
                             this->left_arm_actual_state_.joint_torq(i) = this->d->qfrc_actuator[i];
-                            this->right_arm_actual_state_.joint_torq(i) = this->d->qfrc_actuator[i+ArmModel::num_dof_+2]; // +2 to skip left gripper joint
+                            this->right_arm_actual_state_.joint_torq(i) = this->d->qfrc_actuator[i+ PiperArmNumDof+2]; // +2 to skip left gripper joint
                         }
                         mj_step1(m, d);
                         /* Apply joint level PD control logic to mujoco model.
@@ -403,10 +403,10 @@ void ArmSimulationInterface::physicsLoop()
 
                         /* Set position command to mujoco model.
                          * This operation only valid with "assets/mujoco_model/piper_dual_arm_position.xml" */
-                        for ( std::size_t i=0 ; i<ArmModel::num_dof_ ; i++ )
+                        for ( std::size_t i=0 ; i< PiperArmNumDof ; i++ )
                         {
                             this->d->ctrl[i] = this->left_arm_target_state_.joint_pos(i);
-                            this->d->ctrl[i+2+ArmModel::num_dof_] = this->right_arm_target_state_.joint_pos(i);
+                            this->d->ctrl[i+2+ PiperArmNumDof] = this->right_arm_target_state_.joint_pos(i);
                         }
                         // LOG_DEBUG("Set left arm joint position in mujoco:{:.4f},{:.4f},{:.4f},{:.4f},{:.4f},{:.4f}",
                         //     this->left_arm_target_state_.joint_pos(0),this->left_arm_target_state_.joint_pos(1),this->left_arm_target_state_.joint_pos(2),
@@ -451,16 +451,16 @@ void ArmSimulationInterface::physicsLoop()
                             this->sim_->InjectNoise();
 
                             // call mj_step
-                            for ( int i=0 ; i<ArmModel::num_dof_ ; i++ )
+                            for ( int i=0 ; i< PiperArmNumDof ; i++ )
                             {
                                 this->left_arm_actual_state_.joint_pos(i) = this->d->qpos[i];
-                                this->right_arm_actual_state_.joint_pos(i) = this->d->qpos[i+ArmModel::num_dof_+2];  // +2 to skip left gripper joint
+                                this->right_arm_actual_state_.joint_pos(i) = this->d->qpos[i+ PiperArmNumDof+2];  // +2 to skip left gripper joint
                                 this->left_arm_actual_state_.joint_vel(i) = this->d->qvel[i];
-                                this->right_arm_actual_state_.joint_vel(i) = this->d->qvel[i+ArmModel::num_dof_+2];  // +2 to skip left gripper joint
+                                this->right_arm_actual_state_.joint_vel(i) = this->d->qvel[i+ PiperArmNumDof+2];  // +2 to skip left gripper joint
                                 this->left_arm_actual_state_.joint_acc(i) = this->d->qacc[i];
-                                this->right_arm_actual_state_.joint_acc(i) = this->d->qacc[i+ArmModel::num_dof_+2];  // +2 to skip left gripper joint
+                                this->right_arm_actual_state_.joint_acc(i) = this->d->qacc[i+ PiperArmNumDof+2];  // +2 to skip left gripper joint
                                 this->left_arm_actual_state_.joint_torq(i) = this->d->qfrc_actuator[i];
-                                this->right_arm_actual_state_.joint_torq(i) = this->d->qfrc_actuator[i+ArmModel::num_dof_+2]; // +2 to skip left gripper joint
+                                this->right_arm_actual_state_.joint_torq(i) = this->d->qfrc_actuator[i+ PiperArmNumDof+2]; // +2 to skip left gripper joint
                             }
                             mj_step1(m, d);
                             /* Apply joint level PD control logic to mujoco model.
@@ -469,10 +469,10 @@ void ArmSimulationInterface::physicsLoop()
 
                             /* Set position command to mujoco model.
                             * This operation only valid with "assets/mujoco_model/piper_dual_arm_position.xml" */
-                            for ( std::size_t i=0 ; i<ArmModel::num_dof_ ; i++ )
+                            for ( std::size_t i=0 ; i< PiperArmNumDof ; i++ )
                             {
                                 this->d->ctrl[i] = this->left_arm_target_state_.joint_pos(i);
-                                this->d->ctrl[i+2+ArmModel::num_dof_] = this->right_arm_target_state_.joint_pos(i);
+                                this->d->ctrl[i+2+ PiperArmNumDof] = this->right_arm_target_state_.joint_pos(i);
                             }
                             // LOG_DEBUG("Set left arm joint position in mujoco:{:.4f},{:.4f},{:.4f},{:.4f},{:.4f},{:.4f}",
                             //     this->left_arm_target_state_.joint_pos(0),this->left_arm_target_state_.joint_pos(1),this->left_arm_target_state_.joint_pos(2),

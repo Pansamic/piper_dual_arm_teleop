@@ -12,18 +12,18 @@
 #define __WAYPOINT_H__
 
 #include <Eigen/Core>
-#include <arm_model.h>
+#include <piper_model.hpp>
 
 struct JointState
 {
     /* Joint Position */
-    Eigen::Vector<double,ArmModel::num_dof_> joint_pos;
+    Eigen::Vector<double, PiperArmNumDof> joint_pos;
     /* Joint Velocity */
-    Eigen::Vector<double,ArmModel::num_dof_> joint_vel;
+    Eigen::Vector<double, PiperArmNumDof> joint_vel;
     /* Joint Acceleration */
-    Eigen::Vector<double,ArmModel::num_dof_> joint_acc;
+    Eigen::Vector<double, PiperArmNumDof> joint_acc;
     /* Joint Torque */
-    Eigen::Vector<double,ArmModel::num_dof_> joint_torq;
+    Eigen::Vector<double, PiperArmNumDof> joint_torq;
 };
 
 #endif // __WAYPOINT_H__

@@ -9,12 +9,12 @@
  * 
  */
 #include <Eigen/Core>
-#include <arm_model.h>
 #include <arm_controller.h>
+#include <piper_model.hpp>
 
 ArmController::ArmController(
-    std::shared_ptr<ArmModel> left_arm_model,
-    std::shared_ptr<ArmModel> right_arm_model,
+    std::shared_ptr<RigidBodyTree<double, PiperArmNumDof>> left_arm_model,
+    std::shared_ptr<RigidBodyTree<double, PiperArmNumDof>> right_arm_model,
     std::shared_ptr<ArmInterface> interface,
     TrajectoryBuffer<ArmPlanner::num_plan_waypoint_>& left_arm_trajectory_buffer,
     TrajectoryBuffer<ArmPlanner::num_plan_waypoint_>& right_arm_trajectory_buffer,
@@ -44,18 +44,18 @@ void ArmController::stop()
 
 void ArmController::threadControl()
 {
-    std::array<Eigen::Matrix4d,ArmModel::num_link_> link_transform;
-    std::array<Eigen::Matrix4d,ArmModel::num_link_> link_com_transform;
-    std::array<Eigen::Matrix<double,6,ArmModel::num_dof_>,ArmModel::num_link_> link_com_jacobian;
-    std::array<Eigen::Matrix<double,6,ArmModel::num_dof_>,ArmModel::num_link_> link_com_jacobian_dot;
-    std::array<Eigen::Vector3d,ArmModel::num_link_> link_lin_vel;
-    std::array<Eigen::Vector3d,ArmModel::num_link_> link_ang_vel;
-    std::array<Eigen::Vector3d,ArmModel::num_link_> link_com_lin_vel;
-    std::array<Eigen::Vector3d,ArmModel::num_link_> link_com_ang_vel;
-    Eigen::Matrix<double,ArmModel::num_dof_,ArmModel::num_dof_> generalized_mass_matrix;
-    Eigen::Matrix<double,ArmModel::num_dof_,ArmModel::num_dof_> centrifugal_coriolis_matrix;
-    Eigen::Vector<double,ArmModel::num_dof_> gravity_compensate;
-    Eigen::Vector<double,ArmModel::num_dof_> feedforward_torque;
+    std::array<Eigen::Matrix4d,PiperArmNumDof> link_transform;
+    std::array<Eigen::Matrix4d,PiperArmNumDof> link_com_transform;
+    std::array<Eigen::Matrix<double,6,PiperModel::num_dof_>,PiperArmNumDof> link_com_jacobian;
+    std::array<Eigen::Matrix<double,6,PiperModel::num_dof_>,PiperArmNumDof> link_com_jacobian_dot;
+    std::array<Eigen::Vector3d,PiperArmNumDof> link_lin_vel;
+    std::array<Eigen::Vector3d,PiperArmNumDof> link_ang_vel;
+    std::array<Eigen::Vector3d,PiperArmNumDof> link_com_lin_vel;
+    std::array<Eigen::Vector3d,PiperArmNumDof> link_com_ang_vel;
+    Eigen::Matrix<double,PiperModel::num_dof_,PiperModel::num_dof_> generalized_mass_matrix;
+    Eigen::Matrix<double,PiperModel::num_dof_,PiperModel::num_dof_> centrifugal_coriolis_matrix;
+    Eigen::Vector<double,PiperModel::num_dof_> gravity_compensate;
+    Eigen::Vector<double,PiperModel::num_dof_> feedforward_torque;
     JointState target_joint_state;
     JointState actual_joint_state;
     ErrorCode err = OK;
@@ -84,7 +84,7 @@ void ArmController::threadControl()
         actual_joint_state.joint_pos = this->interface_->getLeftJointPosition();
         actual_joint_state.joint_vel = this->interface_->getLeftJointVelocity();
 
-        this->left_arm_model_->getTransform(link_transform, link_com_transform, actual_joint_state.joint_pos);
+        this->left_arm_model_->getAllLinkAndComTransform(link_transform, link_com_transform, actual_joint_state.joint_pos);
         this->left_arm_model_->getLinkVelocity(link_lin_vel, link_ang_vel, link_com_lin_vel, link_com_ang_vel, link_transform, link_com_transform, actual_joint_state.joint_vel);
         this->left_arm_model_->getLinkComSpaceJacobian(link_com_jacobian, link_transform, link_com_transform);
         this->left_arm_model_->getLinkComSpaceJacobianDot(link_com_jacobian_dot, link_transform, link_com_transform, link_lin_vel, link_ang_vel, link_com_lin_vel);
@@ -121,7 +121,7 @@ void ArmController::threadControl()
         actual_joint_state.joint_pos = this->interface_->getRightJointPosition();
         actual_joint_state.joint_vel = this->interface_->getRightJointVelocity();
 
-        this->right_arm_model_->getTransform(link_transform, link_com_transform, actual_joint_state.joint_pos);
+        this->right_arm_model_->getAllLinkAndComTransform(link_transform, link_com_transform, actual_joint_state.joint_pos);
         this->right_arm_model_->getLinkVelocity(link_lin_vel, link_ang_vel, link_com_lin_vel, link_com_ang_vel, link_transform, link_com_transform, actual_joint_state.joint_vel);
         this->right_arm_model_->getLinkComSpaceJacobian(link_com_jacobian, link_transform, link_com_transform);
         this->right_arm_model_->getLinkComSpaceJacobianDot(link_com_jacobian_dot, link_transform, link_com_transform, link_lin_vel, link_ang_vel, link_com_lin_vel);
