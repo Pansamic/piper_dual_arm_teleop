@@ -15,7 +15,4 @@ struct nav_state_msg {
 
   vec4 base_pos;
   vec4 base_quat;
-  vec6 left_joints;
-  vec6 right_joints;
-  float left_force, right_force;
 };
