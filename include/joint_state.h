@@ -13,17 +13,18 @@
 
 #include <Eigen/Core>
 
-template <typename T, std::size_t NumDof>
+template <typename T, std::size_t NumJoint>
 struct JointState
 {
+    constexpr static std::size_t num_joint = NumJoint;
     /* Joint Position */
-    Eigen::Vector<T, NumDof> joint_pos;
+    Eigen::Vector<T, NumJoint> joint_pos;
     /* Joint Velocity */
-    Eigen::Vector<T, NumDof> joint_vel;
+    Eigen::Vector<T, NumJoint> joint_vel;
     /* Joint Acceleration */
-    Eigen::Vector<T, NumDof> joint_acc;
+    Eigen::Vector<T, NumJoint> joint_acc;
     /* Joint Torque */
-    Eigen::Vector<T, NumDof> joint_torq;
+    Eigen::Vector<T, NumJoint> joint_torq;
 };
 
 #endif // __WAYPOINT_H__
