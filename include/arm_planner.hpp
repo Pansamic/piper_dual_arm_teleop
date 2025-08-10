@@ -17,47 +17,40 @@
 #include <Eigen/Core>
 #include <config.h>
 
-template<typename T>
-concept FixedSizeEigenVector = 
-    std::is_base_of_v<Eigen::Matrix<typename T::Scalar, T::RowsAtCompileTime, T::ColsAtCompileTime>, T> &&
-    T::RowsAtCompileTime != Eigen::Dynamic && 
-    T::ColsAtCompileTime != Eigen::Dynamic;
 
-template<FixedSizeEigenVector JointPosition>
 class ArmPlanner
 {
 public:
     using TimePoint = std::chrono::steady_clock::time_point;
     using Duration = std::chrono::steady_clock::duration;
 
-    static std::tuple<std::vector<TimePoint>, std::vector<JointPosition>>
-    plan(const TimePoint& start_time, const double min_duration, const JointPosition& start, const JointPosition& end, std::size_t amount);
+    template<typename T, std::size_t NumDof, std::size_t WayPointAmount>
+    static std::tuple<std::vector<TimePoint>, Eigen::Matrix<T, NumDof, WayPointAmount>>
+    plan(const TimePoint& start_time, const double min_duration, const Eigen::Vector<T, NumDof>& start, const Eigen::Vector<T, NumDof>& end);
 };
 
-template<FixedSizeEigenVector JointPosition>
-class LinearArmPlanner : ArmPlanner<JointPosition>
+class LinearArmPlanner : ArmPlanner
 {
 private:
-    using Base = ArmPlanner<JointPosition>;
-    using TimePoint = Base::TimePoint;
-    using Duration = Base::Duration;
+    using TimePoint = ArmPlanner::TimePoint;
+    using Duration = ArmPlanner::Duration;
 public:
 
-    static std::tuple<std::vector<TimePoint>, std::vector<JointPosition>>
-    plan(const TimePoint& start_time, const double min_duration, const JointPosition& start, const JointPosition& end, std::size_t amount)
+    template<typename T, std::size_t NumDof, std::size_t WayPointAmount>
+    static std::tuple<std::array<TimePoint, WayPointAmount>, Eigen::Matrix<T, NumDof, WayPointAmount>>
+    plan(const TimePoint& start_time, const double min_duration, const Eigen::Vector<T, NumDof>& start, const Eigen::Vector<T, NumDof>& end)
     {
-        std::vector<JointPosition> trajectory;
-        std::vector<TimePoint> time_point;
+        Eigen::Matrix<T, NumDof, WayPointAmount> trajectory;
+        std::array<TimePoint, WayPointAmount> time_point;
         double duration = min_duration + CONFIG_TRAJECTORY_DECAY_COEF * (end - start).squaredNorm();
-        double interval = duration / (amount - 1);
+        double interval = duration / (WayPointAmount - 1);
         Duration step_duration = std::chrono::duration_cast<std::chrono::steady_clock::duration>(std::chrono::duration<double>(interval));
-
-        for (std::size_t i = 0; i < amount; ++i)
+        Eigen::Vector<T, NumDof> step_position = (end - start) / static_cast<T>(WayPointAmount - 1);
+        for (std::size_t i = 0; i < WayPointAmount; ++i)
         {
-            trajectory.emplace_back(start + (end - start) * (i / (amount - 1)));
-            time_point.emplace_back(start_time + step_duration * i);
+            trajectory.col(i) = (start + step_position * i);
+            time_point[i] = (start_time + step_duration * i);
         }
-
         return std::make_tuple(time_point, trajectory);
     }
 };

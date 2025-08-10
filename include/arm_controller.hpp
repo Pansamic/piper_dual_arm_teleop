@@ -14,6 +14,7 @@
 #include <Eigen/Core>
 #include <joint_state.h>
 #include <piper_model.hpp>
+#include <log.hpp>
 
 template <typename T, std::size_t NumLink, std::size_t NumDof>
 class ArmController
@@ -25,10 +26,15 @@ public:
         Ki(Eigen::Vector<T, NumDof>::Zero()),
         Kd(Eigen::Vector<T, NumDof>::Zero()){}
     explicit ArmController(const T dt, const std::array<T, NumDof>& Kp, const std::array<T, NumDof>& Ki, const std::array<T, NumDof>& Kd) :
-        dt(dt), integral_error(Eigen::Vector<T, NumDof>::Zero()), prev_error(Eigen::Vector<T, NumDof>::Zero()),
-        Kp(Eigen::Map<Eigen::Vector<T, NumDof>>(Kp.data())),
-        Ki(Eigen::Map<Eigen::Vector<T, NumDof>>(Ki.data())),
-        Kd(Eigen::Map<Eigen::Vector<T, NumDof>>(Kd.data())){}
+        dt(dt), integral_error(Eigen::Vector<T, NumDof>::Zero()), prev_error(Eigen::Vector<T, NumDof>::Zero())
+    {
+        for ( std::size_t i=0 ; i<NumDof ; i++ )
+        {
+            this->Kp(i) = Kp[i];
+            this->Ki(i) = Ki[i];
+            this->Kd(i) = Kd[i];
+        }
+    }
     ~ArmController() = default;
     void setControlTimeInterval(const T dt)
     {
@@ -47,38 +53,37 @@ public:
         this->Kd = Kd;
     }
     Eigen::Vector<T, NumDof> computeTorqueControlOutput(
-        // const RigidBodyTree<T, NumLink, NumDof>& model,
         const PiperArmModel<T>& model,
         const Eigen::Vector<T, 3>& external_force,
         const JointState<T, NumDof>& target_joint_state,
         const JointState<T, NumDof>& current_joint_state) const
     {
-        Eigen::Vector<T, NumDof> error = target_joint_state.q - current_joint_state.q;
-        integral_error += error * dt;
-        Eigen::Vector<T, NumDof> derivative_error = (error - prev_error) / dt;
-        Eigen::Vector<T, NumDof> control_output = Kp * error + Ki * integral_error + Kd * derivative_error;
-        prev_error = error;
-        control_output += computeDynamicsCompensate(model, current_joint_state);
+        auto [link_transform, link_com_transform] = model.getTransform(current_joint_state.joint_pos);
+        auto link_com_jacobian = model.getLinkSpaceJacobian(link_transform);
+        auto [link_lin_vel, link_ang_vel, link_com_lin_vel, link_com_ang_vel] = model.getLinkVelocity(link_transform, link_com_transform, current_joint_state.joint_vel);
+        auto link_com_jacobian_dot = model.getLinkComSpaceJacobianDot(link_transform, link_com_transform, link_lin_vel, link_ang_vel, link_com_lin_vel);
+        auto mass_matrix = model.getJointSpaceMassMatrix(link_com_transform, link_com_jacobian);
+        auto coriolis_matrix = model.getJointSpaceCoriolisMatrix(link_com_transform, link_com_jacobian, link_com_jacobian_dot, current_joint_state.joint_vel);
+
+        Eigen::Vector<T, NumDof> control_output =
+            mass_matrix * (
+                // target_joint_state.joint_acc +
+                Kd.cwiseProduct(- current_joint_state.joint_vel) +
+                Kp.cwiseProduct(target_joint_state.joint_pos - current_joint_state.joint_pos)) +
+            coriolis_matrix * target_joint_state.joint_vel;
+ 
         control_output += computeGravityCompensate(model, current_joint_state);
         control_output += computeFrictionCompensate(current_joint_state);
         control_output += computeExternalForceCompensate(model, external_force);
+
         return control_output;
     }
 
     Eigen::Vector<T, NumDof> computeDynamicsCompensate(
-        // const RigidBodyTree<T, NumLink, NumDof>& model,
         const PiperArmModel<T>& model,
         const JointState<T, NumDof>& joint_state) const
     {
         Eigen::Vector<T, NumDof> compensation = Eigen::Vector<T, NumDof>::Zero();
-        
-        // auto link_transform = model.getAllLinkTransform(joint_state.joint_pos);
-        // auto link_com_transform = model.getAllLinkComTransform(joint_state.joint_pos);
-        // auto link_com_jacobian = getLinkComSpaceJacobian(link_transform, link_com_transform);
-        // auto [link_lin_vel, link_ang_vel, link_com_lin_vel, link_com_ang_vel] = model.getLinkVelocity(link_transform, link_com_transform, joint_state.joint_vel);
-        // auto link_com_jacobian_dot = model.getLinkComSpaceJacobianDot(link_transform, link_com_transform, link_lin_vel, link_ang_vel, link_com_lin_vel);
-        // auto mass_matrix = model.getJointSpaceMassMatrix(link_com_transform, link_com_jacobian);
-        // auto coriolis_matrix = model.getJointSpaceCoriolisMatrix(link_com_transform, link_com_jacobian, link_com_jacobian_dot);
 
         auto [link_transform, link_com_transform] = model.getTransform(joint_state.joint_pos);
         auto link_com_jacobian = model.getLinkSpaceJacobian(link_transform);
@@ -91,15 +96,9 @@ public:
         return compensation;
     }
     Eigen::Vector<T, NumDof> computeGravityCompensate(
-        // const RigidBodyTree<T, NumLink, NumDof>& model,
         const PiperArmModel<T>& model,
         const JointState<T, NumDof>& joint_state) const
     {
-        // auto link_transform = model.getAllLinkTransform(joint_state.joint_pos);
-        // auto link_com_transform = model.getAllLinkComTransform(joint_state.joint_pos);
-        // auto link_com_jacobian = getLinkComSpaceJacobian(link_transform, link_com_transform);
-        // return model.getJointSpaceGravityCompensate(link_com_jacobian);
-
         auto [link_transform, link_com_transform] = model.getTransform(joint_state.joint_pos);
         auto link_com_jacobian = model.getLinkSpaceJacobian(link_transform);
         auto gravity_compensate = model.getJointSpaceGravityCompensate(link_com_jacobian);

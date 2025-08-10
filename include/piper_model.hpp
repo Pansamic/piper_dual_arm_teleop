@@ -448,7 +448,7 @@ public:
         Eigen::Matrix<T, 3, NumDof> J_v;
         Eigen::Matrix<T, 3, NumDof> J_w;
         /* reverse of gravity force */
-        Eigen::Vector<T, 3> base_gravity(0, 0, 9.81);
+        static const Eigen::Vector<T, 3> base_gravity(0, 0, 9.81);
 
         for ( int i = 0; i < NumLink; i++ )
         {
@@ -525,16 +525,22 @@ public:
         return inv_transform;
     }
 
-    static ErrorCode getShoulderJointPos(
+    ErrorCode getShoulderJointPos(
         Eigen::Vector<T, 3>& shoulder_joint_pos,
-        const Eigen::Matrix<T, 4, 4> &pose_base,
+        const Eigen::Matrix<T, 4, 4> &pose,
         const Eigen::Vector<T, 3>& ref_conf)
     {
-        ErrorCode err = OK;
-
         Eigen::Matrix<T, 3, 4> possible_joint_pos;
 
         int result_count = 0;
+
+        // Inverse of base transform matrix
+        Eigen::Matrix<T, 4, 4> base_transform_inv = Eigen::Matrix<T, 4, 4>::Identity();
+        base_transform_inv.template block<3, 3>(0, 0) = this->base_transform_.template block<3, 3>(0, 0).transpose();
+        base_transform_inv.template block<3, 1>(0, 3) = -base_transform_inv.template block<3, 3>(0, 0) * this->base_transform_.template block<3, 1>(0, 3);
+
+        // Pose in arm base frame
+        Eigen::Matrix<T, 4, 4> pose_base = base_transform_inv * pose;
 
         // Wrist position in arm base frame
         Eigen::Vector<T, 3> pw0 = pose_base.template block<3, 1>(0, 3) - d6 * pose_base.template block<3, 1>(0, 2);
@@ -586,8 +592,8 @@ public:
                 else
                 {
                     /* no wrist position solution. */
-                    err = NoResult;
-                    return err;
+                    shoulder_joint_pos.setZero();
+                    return ErrorCode::NoResult;
                 }
             }
 
@@ -645,27 +651,16 @@ public:
                 result_count++;
             }
         }
-        int best_id = 0;
+        int best_id = -1;
         T min_movement = std::numeric_limits<T>::max();
         for (int i = 0; i < result_count; ++i)
         {
-            int greater = 1;
-            for ( int j=0 ; j<3 ; j++ )
-            {
-                if ( possible_joint_pos(j,i) < joint_pos_limit_low_[j] )
-                {
-                    greater = 0;
-                }
-            }
-            int less = 1;
-            for ( int j=0 ; j<3 ; j++ )
-            {
-                if ( possible_joint_pos(j,i) > joint_pos_limit_high_[j] )
-                {
-                    less = 0;
-                }
-            }
-            if (less && greater)
+            if (possible_joint_pos(0,i) < joint_pos_limit_low_[0] &&
+                possible_joint_pos(1,i) < joint_pos_limit_low_[1] &&
+                possible_joint_pos(2,i) < joint_pos_limit_low_[2] &&
+                possible_joint_pos(0,i) > joint_pos_limit_high_[0] &&
+                possible_joint_pos(1,i) > joint_pos_limit_high_[1] &&
+                possible_joint_pos(2,i) > joint_pos_limit_high_[2])
             {
                 T movement = (possible_joint_pos.col(i) - ref_conf).squaredNorm();
                 if (movement < min_movement)
@@ -675,19 +670,31 @@ public:
                 }
             }
         }
+        if ( best_id == -1 )
+        {
+            shoulder_joint_pos.setZero();
+            return ErrorCode::NoResult;
+        }
         shoulder_joint_pos = possible_joint_pos.col(best_id);
-
-        return err;
+        return ErrorCode::OK;
     }
 
-    static ErrorCode getInverseKinematics(
+    ErrorCode getInverseKinematics(
         Eigen::Vector<T, NumDof>& joint_pos,
-        const Eigen::Matrix<T, 4, 4>& pose_base,
-        const Eigen::Vector<T,6>& ref_conf)
+        const Eigen::Matrix<T, 4, 4>& pose,
+        const Eigen::Vector<T, NumDof>& ref_conf)
     {
-        Eigen::Matrix<T, 6, 8> joint_pos_list;
+        Eigen::Matrix<T, NumDof, 8> joint_pos_list;
 
         int result_count = 0;
+
+        // Inverse of base transform matrix
+        Eigen::Matrix<T, 4, 4> base_transform_inv = Eigen::Matrix<T, 4, 4>::Identity();
+        base_transform_inv.template block<3, 3>(0, 0) = this->base_transform_.template block<3, 3>(0, 0).transpose();
+        base_transform_inv.template block<3, 1>(0, 3) = -base_transform_inv.template block<3, 3>(0, 0) * this->base_transform_.template block<3, 1>(0, 3);
+
+        // Pose in arm base frame
+        Eigen::Matrix<T, 4, 4> pose_base = base_transform_inv * pose;
 
         // Wrist position in arm base frame
         Eigen::Vector<T, 3> pw0 = pose_base.template block<3, 1>(0, 3) - d6 * pose_base.template block<3, 1>(0, 2);
@@ -795,9 +802,9 @@ public:
             for (int j = 0; j < 2; ++j)
             {
                 Eigen::Matrix<T, 3, 3> R1, R2, R3;
-                R1 = Eigen::AngleAxisd(theta1(i), Eigen::Vector<T, 3>::UnitZ()).toRotationMatrix();
-                R2 = Eigen::AngleAxisd(theta2(j), Eigen::Vector<T, 3>::UnitY()).toRotationMatrix();
-                R3 = Eigen::AngleAxisd(theta3(j), Eigen::Vector<T, 3>::UnitY()).toRotationMatrix();
+                R1 = Eigen::AngleAxis<T>(theta1(i), Eigen::Vector<T, 3>::UnitZ()).toRotationMatrix();
+                R2 = Eigen::AngleAxis<T>(theta2(j), Eigen::Vector<T, 3>::UnitY()).toRotationMatrix();
+                R3 = Eigen::AngleAxis<T>(theta3(j), Eigen::Vector<T, 3>::UnitY()).toRotationMatrix();
 
                 Eigen::Matrix<T, 3, 3> R = R3.transpose() * R2.transpose() * R1.transpose() * pose_base.template block<3, 3>(0, 0);
 
@@ -882,14 +889,14 @@ public:
         return OK;
     }
 
-    static ErrorCode getDampedLeastSquareInverseKinematics(
+    ErrorCode getDampedLeastSquareInverseKinematics(
         Eigen::Vector<T,NumDof>& joint_pos, 
         const PiperArmModel<T>& model,
-        const T lambda,
-        const Eigen::Vector<T,6> tolerance,
-        const size_t max_iteration,
-        const Eigen::Matrix<T, 4, 4> &pose_base,
-        const Eigen::Vector<T, 6>& ref_conf)
+        const Eigen::Matrix<T, 4, 4> &pose,
+        const Eigen::Vector<T, 6>& ref_conf,
+        const T lambda = 0.1,
+        const Eigen::Vector<T, 6> tolerance = Eigen::Vector<T, 6>(0.05, 0.05, 0.05, 0.1, 0.1, 0.1),
+        const size_t max_iteration = 200)
     {
         auto getPoseDiff = [](const Eigen::Matrix<T, 4, 4>& target_pose, const Eigen::Matrix<T, 4, 4>& current_pose)
         {
@@ -914,7 +921,7 @@ public:
         Eigen::Vector<T,NumDof> joint_pos_diff = Eigen::Vector<T,NumDof>::Zero();
         Eigen::Vector<T, 3> shoulder_joint_pos = Eigen::Vector<T, 3>::Zero();
 
-        err = getShoulderJointPos(shoulder_joint_pos, pose_base, ref_conf.template block<3,1>(0,0));
+        err = getShoulderJointPos(shoulder_joint_pos, pose, ref_conf.template block<3,1>(0,0));
 
         if ( err == NoResult )
         {
@@ -927,7 +934,7 @@ public:
         {
             auto [link_transform, link_com_transform] = model.getTransform(best_joint_pos);
             auto link_jacobian = model.getLinkSpaceJacobian(link_transform);
-            Eigen::Vector<T, 6> pose_diff = getPoseDiff(pose_base, link_transform[5]);
+            Eigen::Vector<T, 6> pose_diff = getPoseDiff(pose, link_transform[5]);
 
             /* Check if the pose difference is within the tolerance */
             if ( (pose_diff.array() < tolerance.array()).all() )

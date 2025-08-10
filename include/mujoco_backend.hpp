@@ -24,7 +24,8 @@ class MujocoBackend
 public:
     explicit MujocoBackend()
     {
-        mjSpec* s = mj_parseXMLString(piper_dual_arm_position_full_xml, nullptr, nullptr, 0);
+        // mjSpec* s = mj_parseXMLString(piper_dual_arm_position_full_xml, nullptr, nullptr, 0);
+        mjSpec* s = mj_parseXML(PROJECT_PATH"/assets/mujoco_model/piper_dual_arm_torque_full.xml", nullptr, nullptr, 0);
         if ( s == nullptr )
         {
             throw std::runtime_error("MuJoCo failed to parse XML");
@@ -79,65 +80,65 @@ public:
         return this->mujoco_data_;
     }
     
-    void setLeftArmJointPosition(Eigen::Vector<T, NumDof> joint_pos)
+    void setLeftArmJointControl(Eigen::Vector<T, NumDof> q)
     {
         std::lock_guard<std::mutex>(this->mutex_);
         for ( int i=0 ; i<NumDof ; ++i )
         {
-            this->mujoco_data_->ctrl[i] = joint_pos(i);
+            this->mujoco_data_->ctrl[i] = q(i);
         }
     }
 
-    void setLeftArmJointPosition(std::array<T, NumDof> joint_pos)
+    void setLeftArmJointControl(std::array<T, NumDof> q)
     {
         std::lock_guard<std::mutex>(this->mutex_);
         for ( int i=0 ; i<NumDof ; ++i )
         {
-            this->mujoco_data_->ctrl[i] = joint_pos[i];
+            this->mujoco_data_->ctrl[i] = q[i];
         }
     }
 
-    void setLeftArmJointPosition(std::vector<T> joint_pos)
+    void setLeftArmJointControl(std::vector<T> q)
     {
-        if ( joint_pos.size() != NumDof )
+        if ( q.size() != NumDof )
         {
             return ;
         }
         std::lock_guard<std::mutex>(this->mutex_);
         for ( int i=0 ; i<NumDof ; ++i )
         {
-            this->mujoco_data_->ctrl[i] = joint_pos[i];
+            this->mujoco_data_->ctrl[i] = q[i];
         }
     }
 
-    void setRightArmJointPosition(Eigen::Vector<T, NumDof> joint_pos)
+    void setRightArmJointControl(Eigen::Vector<T, NumDof> q)
     {
         std::lock_guard<std::mutex>(this->mutex_);
         for ( int i=0 ; i<NumDof ; ++i )
         {
-            this->mujoco_data_->ctrl[NumDof + 2 + i] = joint_pos(i); // 2 for two finger joints.
+            this->mujoco_data_->ctrl[NumDof + 2 + i] = q(i); // 2 for two finger joints.
         }
     }
 
-    void setRightArmJointPosition(std::array<T, NumDof> joint_pos)
+    void setRightArmJointControl(std::array<T, NumDof> q)
     {
         std::lock_guard<std::mutex>(this->mutex_);
         for ( int i=0 ; i<NumDof ; ++i )
         {
-            this->mujoco_data_->ctrl[NumDof + 2 + i] = joint_pos[i]; // 2 for two finger joints.
+            this->mujoco_data_->ctrl[NumDof + 2 + i] = q[i]; // 2 for two finger joints.
         }
     }
 
-    void setRightArmJointPosition(std::vector<T> joint_pos)
+    void setRightArmJointControl(std::vector<T> q)
     {
-        if ( joint_pos.size() != NumDof )
+        if ( q.size() != NumDof )
         {
             return ;
         }
         std::lock_guard<std::mutex>(this->mutex_);
         for ( int i=0 ; i<NumDof ; ++i )
         {
-            this->mujoco_data_->ctrl[NumDof + 2 + i] = joint_pos[i]; // 2 for two finger joints.
+            this->mujoco_data_->ctrl[NumDof + 2 + i] = q[i]; // 2 for two finger joints.
         }
     }
 
@@ -152,6 +153,28 @@ public:
         return joint_pos;
     }
 
+    Eigen::Vector<T, NumDof> getLeftArmJointVelocity() const
+    {
+        std::lock_guard<std::mutex>(this->mutex_);
+        Eigen::Vector<T, NumDof> joint_vel;
+        for ( std::size_t i=0 ; i<NumDof ; ++i )
+        {
+            joint_vel(i) = this->mujoco_data_->qvel[i];
+        }
+        return joint_vel;
+    }
+
+    Eigen::Vector<T, NumDof> getLeftArmJointAcceleration() const
+    {
+        std::lock_guard<std::mutex>(this->mutex_);
+        Eigen::Vector<T, NumDof> joint_acc;
+        for ( std::size_t i=0 ; i<NumDof ; ++i )
+        {
+            joint_acc(i) = this->mujoco_data_->qacc[i];
+        }
+        return joint_acc;
+    }
+
     Eigen::Vector<T, NumDof> getRightArmJointPosition() const
     {
         std::lock_guard<std::mutex>(this->mutex_);
@@ -161,6 +184,28 @@ public:
             joint_pos(i) = this->mujoco_data_->qpos[NumDof + 2 + i];
         }
         return joint_pos;
+    }
+
+    Eigen::Vector<T, NumDof> getRightArmJointVelocity() const
+    {
+        std::lock_guard<std::mutex>(this->mutex_);
+        Eigen::Vector<T, NumDof> joint_vel;
+        for ( std::size_t i=0 ; i<NumDof ; ++i )
+        {
+            joint_vel(i) = this->mujoco_data_->qvel[NumDof + 2 + i];
+        }
+        return joint_vel;
+    }
+
+    Eigen::Vector<T, NumDof> getRightArmJointAcceleration() const
+    {
+        std::lock_guard<std::mutex>(this->mutex_);
+        Eigen::Vector<T, NumDof> joint_acc;
+        for ( std::size_t i=0 ; i<NumDof ; ++i )
+        {
+            joint_acc(i) = this->mujoco_data_->qacc[NumDof + 2 + i];
+        }
+        return joint_acc;
     }
 
     Eigen::Vector<T, 3> getLeftHandMocapPosition() const
