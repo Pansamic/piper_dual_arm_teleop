@@ -37,6 +37,16 @@ struct Joint
     Eigen::Vector<T, 3> axis;
     Eigen::Vector<T, 2> limits;
     Eigen::Matrix<T, 4, 4> joint_to_parent_transform;
+
+    constexpr Joint() : id(0), type(JointType::JointTypeFixed), axis(Eigen::Vector<T, 3>::Zero()), limits(Eigen::Vector<T, 2>::Zero()), joint_to_parent_transform(Eigen::Matrix<T, 4, 4>::Zero()){}
+    /* @todo test constexpr constant variable declaration. */
+    constexpr Joint(
+        std::size_t id,
+        JointType type,
+        Eigen::Vector<T, 3> axis,
+        Eigen::Vector<T, 2> limits,
+        Eigen::Matrix<T, 4, 4> joint_to_parent_transform) :
+        id(id), type(type), axis(axis), limits(limits), joint_to_parent_transform(joint_to_parent_transform){}
 };
 
 template<typename T>
@@ -47,9 +57,18 @@ struct RigidBody
     Eigen::Vector<T, 3> center_of_mass;
     Eigen::Matrix<T, 3, 3> inertia;
     Joint<T> joint;
+
+    constexpr RigidBody() : id(0), mass(0), center_of_mass(Eigen::Vector<T, 3>::Zero()), inertia(Eigen::Matrix<T, 3, 3>::Zero()), joint() {}
+    // constexpr RigidBody(
+    //     std::size_t id,
+    //     T mass,
+    //     Eigen::Vector<T, 3> center_of_mass,
+    //     Eigen::Matrix<T, 3, 3> inertia,
+    //     Joint<T> joint
+    // )
 };
 
-template<typename T, std::size_t NumDof>
+template<typename T, std::size_t NumLink, std::size_t NumDof>
 class RigidBodyTree : private MultiNodeTree<RigidBody<T>*>
 {
 public:
@@ -58,15 +77,15 @@ public:
         std::size_t root_id;
         std::array<T, 3> base_position;
         std::array<T, 3> base_orientation;
-        std::array<T, NumDof> mass;
-        std::array<std::array<T, 3>, NumDof> initial_position;
-        std::array<std::array<T, 3>, NumDof> initial_orientation;
-        std::array<std::array<T, 3>, NumDof> com;
-        std::array<std::array<T, 6>, NumDof> inertia;
-        std::array<JointType, NumDof> joint_type;
-        std::array<std::array<T, 3>, NumDof> joint_axis;
-        std::array<std::array<T, 2>, NumDof> joint_limits;
-        std::array<std::vector<std::size_t>, NumDof> children_indices;
+        std::array<T, NumLink> mass;
+        std::array<std::array<T, 3>, NumLink> initial_position;
+        std::array<std::array<T, 3>, NumLink> initial_orientation;
+        std::array<std::array<T, 3>, NumLink> com;
+        std::array<std::array<T, 6>, NumLink> inertia;
+        std::array<JointType, NumLink> joint_type;
+        std::array<std::array<T, 3>, NumLink> joint_axis;
+        std::array<std::array<T, 2>, NumLink> joint_limits;
+        std::array<std::vector<std::size_t>, NumLink> children_indices;
 
         RigidBody<T> buildRigidBodyById(std::size_t id) const
         {
@@ -90,29 +109,42 @@ public:
         }
     };
 
-    explicit RigidBodyTree() = default;
+    RigidBodyTree() = default;
 
     ~RigidBodyTree() = default;
 
     bool build(const Builder& builder)
     {
-        if (builder.root_id >= NumDof)
+        if (builder.root_id >= NumLink)
         {
             return false;
         }
 
-        for (std::size_t i = 0; i < NumDof; ++i)
+        std::size_t dof_in_data = 0;
+        for ( const auto it : builder.joint_type )
+        {
+            if ( it == JointType::JointTypePrismatic || it == JointType::JointTypeRevolute )
+            {
+                dof_in_data++;
+            }
+        }
+        if ( dof_in_data != NumDof )
+        {
+            return false;
+        }
+
+        for (std::size_t i = 0; i < NumLink; ++i)
         {
             links_storage_[i] = builder.buildRigidBodyById(i);
         }
 
-        Eigen::Matrix<T, 4, 4> base_transform = getTransformFromRotationAndTranslation(
+        this->base_transform_ = getTransformFromRotationAndTranslation(
             builder.base_position[0], builder.base_position[1], builder.base_position[2],
             builder.base_orientation[0], builder.base_orientation[1], builder.base_orientation[2]
         );
 
         auto& root_joint_transform = links_storage_[builder.root_id].joint.joint_to_parent_transform;
-        root_joint_transform = base_transform * root_joint_transform;
+        root_joint_transform = this->base_transform_ * root_joint_transform;
 
         this->setRoot(&links_storage_[builder.root_id]);
         auto root_node = this->getRoot();
@@ -132,7 +164,7 @@ public:
 
             for (std::size_t child_id : builder.children_indices[current_id])
             {
-                if (child_id >= NumDof)
+                if (child_id >= NumLink)
                 {
                     this->clear();
                     return false;
@@ -145,10 +177,25 @@ public:
         return true;
     }
 
+    const RigidBody<T>* findLinkByID(std::size_t id) const
+    {
+        if ( id > NumLink )
+        {
+            return nullptr;
+        }
+        return &this->links_storage_[id];
+    }
+
+    Eigen::Matrix<T, 4, 4> getBaseTransform() const
+    {
+        return this->base_transform_;
+    }
+
     Eigen::Matrix<T, 4, 4> getLinkTransform(std::size_t id, const Eigen::Vector<T, NumDof>& joint_pos) const
     {
         Eigen::Matrix<T, 4, 4> transform = Eigen::Matrix<T, 4, 4>::Identity();
-        auto path = this->getPathTo(&links_storage_[id]);
+        auto path = this->getPathTo(&this->links_storage_[id]);
+        auto joint_pos_expand = this->expand(joint_pos);
 
         for (const RigidBody<T>* rb : path)
         {
@@ -157,12 +204,12 @@ public:
 
             if (joint.type == JointTypeRevolute)
             {
-                Eigen::AngleAxis<T> aa(joint_pos[joint.id], joint.axis);
+                Eigen::AngleAxis<T> aa(joint_pos_expand[joint.id], joint.axis);
                 joint_motion.template block<3, 3>(0, 0) = aa.toRotationMatrix();
             }
             else if (joint.type == JointTypePrismatic)
             {
-                joint_motion.template block<3, 1>(0, 3) = joint.axis * joint_pos[joint.id];
+                joint_motion.template block<3, 1>(0, 3) = joint.axis * joint_pos_expand[joint.id];
             }
 
             transform = transform * joint.joint_to_parent_transform * joint_motion;
@@ -170,10 +217,10 @@ public:
         return transform;
     }
 
-    std::array<Eigen::Matrix<T, 4, 4>, NumDof> getAllLinkTransform(const Eigen::Vector<T, NumDof>& joint_pos) const
+    std::array<Eigen::Matrix<T, 4, 4>, NumLink> getAllLinkTransform(const Eigen::Vector<T, NumDof>& joint_pos) const
     {
-        std::array<Eigen::Matrix<T, 4, 4>, NumDof> transforms;
-        for (std::size_t i = 0; i < NumDof; ++i)
+        std::array<Eigen::Matrix<T, 4, 4>, NumLink> transforms;
+        for (std::size_t i = 0; i < NumLink; ++i)
         {
             transforms[i] = getLinkTransform(i, joint_pos);
         }
@@ -189,17 +236,17 @@ public:
         return link_transform;
     }
 
-    std::array<Eigen::Matrix<T, 4, 4>, NumDof> getAllLinkComTransform(const Eigen::Vector<T, NumDof>& joint_pos) const
+    std::array<Eigen::Matrix<T, 4, 4>, NumLink> getAllLinkComTransform(const Eigen::Vector<T, NumDof>& joint_pos) const
     {
-        std::array<Eigen::Matrix<T, 4, 4>, NumDof> com_transforms;
-        for (std::size_t i = 0; i < NumDof; ++i)
+        std::array<Eigen::Matrix<T, 4, 4>, NumLink> com_transforms;
+        for (std::size_t i = 0; i < NumLink; ++i)
         {
             com_transforms[i] = getLinkComTransform(i, joint_pos);
         }
         return com_transforms;
     }
 
-    std::tuple<std::array<Eigen::Matrix<T, 4, 4>, NumDof>, std::array<Eigen::Matrix<T, 4, 4>, NumDof>>
+    std::tuple<std::array<Eigen::Matrix<T, 4, 4>, NumLink>, std::array<Eigen::Matrix<T, 4, 4>, NumLink>>
     getAllLinkAndComTransform(const Eigen::Vector<T, NumDof>& joint_pos) const
     {
         auto link_transforms = getAllLinkTransform(joint_pos);
@@ -208,20 +255,20 @@ public:
     }
 
     std::tuple<
-        std::array<Eigen::Vector<T, 3>, NumDof>,
-        std::array<Eigen::Vector<T, 3>, NumDof>,
-        std::array<Eigen::Vector<T, 3>, NumDof>,
-        std::array<Eigen::Vector<T, 3>, NumDof>>
+        std::array<Eigen::Vector<T, 3>, NumLink>,
+        std::array<Eigen::Vector<T, 3>, NumLink>,
+        std::array<Eigen::Vector<T, 3>, NumLink>,
+        std::array<Eigen::Vector<T, 3>, NumLink>>
     getLinkVelocity(
-        const std::array<Eigen::Matrix<T, 4, 4>, NumDof>& link_transform,
-        const std::array<Eigen::Matrix<T, 4, 4>, NumDof>& link_com_transform,
+        const std::array<Eigen::Matrix<T, 4, 4>, NumLink>& link_transform,
+        const std::array<Eigen::Matrix<T, 4, 4>, NumLink>& link_com_transform,
         const Eigen::Vector<T, NumDof>& joint_vel) const
     {
-        std::array<Eigen::Vector<T, 3>, NumDof> link_lin_vel;
-        std::array<Eigen::Vector<T, 3>, NumDof> link_ang_vel;
-        std::array<Eigen::Vector<T, 3>, NumDof> link_com_lin_vel;
-        std::array<Eigen::Vector<T, 3>, NumDof> link_com_ang_vel;
-
+        std::array<Eigen::Vector<T, 3>, NumLink> link_lin_vel;
+        std::array<Eigen::Vector<T, 3>, NumLink> link_ang_vel;
+        std::array<Eigen::Vector<T, 3>, NumLink> link_com_lin_vel;
+        std::array<Eigen::Vector<T, 3>, NumLink> link_com_ang_vel;
+        auto joint_vel_expand = this->expand(joint_vel);
         for (auto& v : link_lin_vel)
         {
             v.setZero();
@@ -256,7 +303,7 @@ public:
 
             if (joint.type == JointTypeRevolute)
             {
-                v_ang += joint_axis_world * joint_vel[joint.id];
+                v_ang += joint_axis_world * joint_vel_expand[joint.id];
                 if (body->id != 0)
                 {
                     auto parent_id = this->findParent(body);
@@ -282,7 +329,7 @@ public:
                         );
                     }
                 }
-                v_lin += joint_axis_world * joint_vel[joint.id];
+                v_lin += joint_axis_world * joint_vel_expand[joint.id];
             }
 
             link_lin_vel[i] = v_lin;
@@ -292,7 +339,7 @@ public:
             Eigen::Vector<T, 3> r_com = link_com_transform[i].template block<3,1>(0,3) - link_transform[i].template block<3,1>(0,3);
             link_com_lin_vel[i] = v_lin + v_ang.cross(r_com);
 
-            for (const auto& child_ptr : this->getRoot()->findChild(body)->children)
+            for (const auto& child_ptr : this->getChildren(body))
             {
                 compute_velocities(child_ptr->data, v_lin, v_ang);
             }
@@ -341,63 +388,27 @@ public:
         return jacobian;
     }
 
-    std::array<Eigen::Matrix<T, 6, NumDof>, NumDof> getAllLinkSpaceJacobian(const std::array<Eigen::Matrix<T, 4, 4>, NumDof>& link_transform) const
+    std::array<Eigen::Matrix<T, 6, NumDof>, NumLink> getAllLinkSpaceJacobian(const Eigen::Vector<T, NumDof>& joint_pos) const
     {
-        std::array<Eigen::Matrix<T, 6, NumDof>, NumDof> jacobians;
-        for (auto& J : jacobians)
+        std::array<Eigen::Matrix<T, 6, NumDof>, NumLink> jacobians;
+        for (std::size_t i = 0; i < NumLink; ++i)
         {
-            J.setZero();
-        }
-
-        for (std::size_t i = 0; i < NumDof; ++i)
-        {
-            const RigidBody<T>* body = &links_storage_[i];
-            const auto& X_i = link_transform[i];
-            Eigen::Vector<T, 3> p_i = X_i.template block<3,1>(0,3);
-
-            const RigidBody<T>* current = body;
-            while (current != nullptr)
-            {
-                const Joint<T>& joint = current->joint;
-                if (joint.type == JointTypeFixed)
-                {
-                    current = (current == body) ? nullptr : getTreeNodeParent(current)->data;
-                    continue;
-                }
-
-                std::size_t j = joint.id;
-                Eigen::Matrix<T, 3, 3> R_j = link_transform[current->id].template block<3,3>(0,0);
-                Eigen::Vector<T, 3> axis_world = R_j * joint.axis;
-                Eigen::Vector<T, 3> p_j = link_transform[current->id].template block<3,1>(0,3);
-
-                if (joint.type == JointTypeRevolute)
-                {
-                    jacobians[i].template block<3,1>(0,j) = axis_world.cross(p_i - p_j);
-                    jacobians[i].template block<3,1>(3,j) = axis_world;
-                }
-                else if (joint.type == JointTypePrismatic)
-                {
-                    jacobians[i].template block<3,1>(0,j) = axis_world;
-                    jacobians[i].template block<3,1>(3,j).setZero();
-                }
-
-                current = (current == body) ? nullptr : getTreeNodeParent(current)->data;
-            }
+            jacobians[i] = this->getLinkSpaceJacobian(i, joint_pos);
         }
         return jacobians;
     }
 
-    std::array<Eigen::Matrix<T, 6, NumDof>, NumDof> getLinkComSpaceJacobian(
-        const std::array<Eigen::Matrix<T, 4, 4>, NumDof>& link_transform,
-        const std::array<Eigen::Matrix<T, 4, 4>, NumDof>& link_com_transform) const
+    std::array<Eigen::Matrix<T, 6, NumLink>, NumLink> getLinkComSpaceJacobian(
+        const std::array<Eigen::Matrix<T, 4, 4>, NumLink>& link_transform,
+        const std::array<Eigen::Matrix<T, 4, 4>, NumLink>& link_com_transform) const
     {
-        std::array<Eigen::Matrix<T, 6, NumDof>, NumDof> jacobians;
+        std::array<Eigen::Matrix<T, 6, NumLink>, NumLink> jacobians;
         for (auto& J : jacobians)
         {
             J.setZero();
         }
 
-        for (std::size_t i = 0; i < NumDof; ++i)
+        for (std::size_t i = 0; i < NumLink; ++i)
         {
             const RigidBody<T>* body = &links_storage_[i];
             Eigen::Vector<T, 3> p_com_i = link_com_transform[i].template block<3,1>(0,3);
@@ -408,7 +419,7 @@ public:
                 const Joint<T>& joint = current->joint;
                 if (joint.type == JointTypeFixed)
                 {
-                    current = (current == body) ? nullptr : getTreeNodeParent(current)->data;
+                    current = (current == body) ? nullptr : findParent(current)->data;
                     continue;
                 }
 
@@ -428,37 +439,37 @@ public:
                     jacobians[i].template block<3,1>(3,j).setZero();
                 }
 
-                current = (current == body) ? nullptr : getTreeNodeParent(current)->data;
+                current = (current == body) ? nullptr : findParent(current)->data;
             }
         }
         return jacobians;
     }
 
-    std::array<Eigen::Matrix<T, 6, NumDof>, NumDof> getLinkComSpaceJacobianDot(
-        const std::array<Eigen::Matrix<T, 4, 4>, NumDof>& link_transform,
-        const std::array<Eigen::Matrix<T, 4, 4>, NumDof>& link_com_transform,
-        const std::array<Eigen::Vector<T, 3>, NumDof>& link_lin_vel,
-        const std::array<Eigen::Vector<T, 3>, NumDof>& link_ang_vel,
-        const std::array<Eigen::Vector<T, 3>, NumDof>& link_com_lin_vel) const
+    std::array<Eigen::Matrix<T, 6, NumLink>, NumLink> getLinkComSpaceJacobianDot(
+        const std::array<Eigen::Matrix<T, 4, 4>, NumLink>& link_transform,
+        const std::array<Eigen::Matrix<T, 4, 4>, NumLink>& link_com_transform,
+        const std::array<Eigen::Vector<T, 3>, NumLink>& link_lin_vel,
+        const std::array<Eigen::Vector<T, 3>, NumLink>& link_ang_vel,
+        const std::array<Eigen::Vector<T, 3>, NumLink>& link_com_lin_vel) const
     {
-        std::array<Eigen::Matrix<T, 6, NumDof>, NumDof> jacobian_dot;
+        std::array<Eigen::Matrix<T, 6, NumLink>, NumLink> jacobian_dot;
         for (auto& Jd : jacobian_dot)
         {
             Jd.setZero();
         }
 
-        for (std::size_t i = 0; i < NumDof; ++i)
+        for (std::size_t i = 0; i < NumLink; ++i)
         {
             const RigidBody<T>* body = &links_storage_[i];
             Eigen::Vector<T, 3> v_com_i = link_com_lin_vel[i];
 
-            const RigidBody<T>* current = body;
+            RigidBody<T>* current = body;
             while (current != nullptr)
             {
                 const Joint<T>& joint = current->joint;
                 if (joint.type == JointTypeFixed)
                 {
-                    current = (current == body) ? nullptr : getTreeNodeParent(current)->data;
+                    current = (current == body) ? nullptr : findParent(current)->data;
                     continue;
                 }
 
@@ -482,18 +493,18 @@ public:
                     jacobian_dot[i].template block<3,1>(3,j).setZero();
                 }
 
-                current = (current == body) ? nullptr : getTreeNodeParent(current)->data;
+                current = (current == body) ? nullptr : findParent(current)->data;
             }
         }
         return jacobian_dot;
     }
 
     Eigen::Matrix<T, NumDof, NumDof> getJointSpaceMassMatrix(
-        const std::array<Eigen::Matrix<T, 4, 4>, NumDof>& link_com_transform,
-        const std::array<Eigen::Matrix<T, 6, NumDof>, NumDof>& link_com_jacobian) const
+        const std::array<Eigen::Matrix<T, 4, 4>, NumLink>& link_com_transform,
+        const std::array<Eigen::Matrix<T, 6, NumDof>, NumLink>& link_com_jacobian) const
     {
         Eigen::Matrix<T, NumDof, NumDof> M = Eigen::Matrix<T, NumDof, NumDof>::Zero();
-        for (std::size_t i = 0; i < NumDof; ++i)
+        for (std::size_t i = 0; i < NumLink; ++i)
         {
             const auto& body = links_storage_[i];
             if (body.mass <= T(0))
@@ -510,10 +521,10 @@ public:
         return M;
     }
 
-    Eigen::Matrix<T, NumDof, NumDof> getJointSpaceCoriolisMatrix(
-        const std::array<Eigen::Matrix<T, 4, 4>, NumDof>& link_com_transform,
-        const std::array<Eigen::Matrix<T, 6, NumDof>, NumDof>& link_com_jacobian,
-        const std::array<Eigen::Matrix<T, 6, NumDof>, NumDof>& link_com_jacobian_dot,
+    Eigen::Matrix<T, NumLink, NumLink> getJointSpaceCoriolisMatrix(
+        const std::array<Eigen::Matrix<T, 4, 4>, NumLink>& link_com_transform,
+        const std::array<Eigen::Matrix<T, 6, NumLink>, NumLink>& link_com_jacobian,
+        const std::array<Eigen::Matrix<T, 6, NumLink>, NumLink>& link_com_jacobian_dot,
         const Eigen::Vector<T, NumDof>& joint_vel) const
     {
         auto getSkew = [](const Eigen::Vector<T, 3>& w)
@@ -525,8 +536,8 @@ public:
             return S;
         };
 
-        Eigen::Matrix<T, NumDof, NumDof> C = Eigen::Matrix<T, NumDof, NumDof>::Zero();
-        for (std::size_t i = 0; i < NumDof; ++i)
+        Eigen::Matrix<T, NumLink, NumLink> C = Eigen::Matrix<T, NumLink, NumLink>::Zero();
+        for (std::size_t i = 0; i < NumLink; ++i)
         {
             const auto& body = links_storage_[i];
             if (body.mass <= T(0))
@@ -534,10 +545,10 @@ public:
                 continue;
             }
 
-            Eigen::Matrix<T, 3, NumDof> Jv = link_com_jacobian[i].template block<3, NumDof>(0, 0);
-            Eigen::Matrix<T, 3, NumDof> Jw = link_com_jacobian[i].template block<3, NumDof>(3, 0);
-            Eigen::Matrix<T, 3, NumDof> Jdv = link_com_jacobian_dot[i].template block<3, NumDof>(0, 0);
-            Eigen::Matrix<T, 3, NumDof> Jdw = link_com_jacobian_dot[i].template block<3, NumDof>(3, 0);
+            Eigen::Matrix<T, 3, NumLink> Jv = link_com_jacobian[i].template block<3, NumLink>(0, 0);
+            Eigen::Matrix<T, 3, NumLink> Jw = link_com_jacobian[i].template block<3, NumLink>(3, 0);
+            Eigen::Matrix<T, 3, NumLink> Jdv = link_com_jacobian_dot[i].template block<3, NumLink>(0, 0);
+            Eigen::Matrix<T, 3, NumLink> Jdw = link_com_jacobian_dot[i].template block<3, NumLink>(3, 0);
             Eigen::Matrix<T, 3, 3> I_base = link_com_transform[i].template block<3,3>(0,0) * body.inertia * link_com_transform[i].template block<3,3>(0,0).transpose();
 
             C.noalias() += Jv.transpose() * body.mass * Jdv
@@ -548,25 +559,25 @@ public:
     }
 
     Eigen::Vector<T, NumDof> getJointSpaceGravityCompensate(
-        const std::array<Eigen::Matrix<T, 6, NumDof>, NumDof>& link_com_jacobian) const
+        const std::array<Eigen::Matrix<T, 6, NumLink>, NumLink>& link_com_jacobian) const
     {
-        Eigen::Vector<T, NumDof> G = Eigen::Vector<T, NumDof>::Zero();
+        Eigen::Vector<T, NumLink> G = Eigen::Vector<T, NumLink>::Zero();
         const Eigen::Vector<T, 3> gravity(0, 0, -9.81);
 
-        for (std::size_t i = 0; i < NumDof; ++i)
+        for (std::size_t i = 0; i < NumLink; ++i)
         {
             const auto& body = links_storage_[i];
             if (body.mass <= T(0))
             {
                 continue;
             }
-            Eigen::Matrix<T, 3, NumDof> Jv = link_com_jacobian[i].template block<3, NumDof>(0, 0);
+            Eigen::Matrix<T, 3, NumLink> Jv = link_com_jacobian[i].template block<3, NumLink>(0, 0);
             G.noalias() += Jv.transpose() * (body.mass * gravity);
         }
-        return G;
+        return this->squeeze(G);
     }
 
-    std::tuple<Eigen::Matrix<T, 6, 6>, Eigen::Matrix<T, 6, 1>>
+    std::tuple<Eigen::Matrix<T, 6, 6>, Eigen::Vector<T, 6>>
     getTaskSpaceInverseDynamics(
         const Eigen::Vector<T, NumDof>& joint_pos,
         const Eigen::Vector<T, NumDof>& joint_vel) const
@@ -576,19 +587,19 @@ public:
         auto com_jac = getLinkComSpaceJacobian(link_tf, com_tf);
         auto com_jac_dot = getLinkComSpaceJacobianDot(link_tf, com_tf, lin_vel, ang_vel, com_lin_vel);
 
-        Eigen::Matrix<T, NumDof, NumDof> M = getJointSpaceMassMatrix(com_tf, com_jac);
-        Eigen::Matrix<T, NumDof, NumDof> C = getJointSpaceCoriolisMatrix(com_tf, com_jac, com_jac_dot, joint_vel);
-        Eigen::Vector<T, NumDof> G = getJointSpaceGravityCompensate(com_jac);
+        Eigen::Matrix<T, NumLink, NumLink> M = getJointSpaceMassMatrix(com_tf, com_jac);
+        Eigen::Matrix<T, NumLink, NumLink> C = getJointSpaceCoriolisMatrix(com_tf, com_jac, com_jac_dot, joint_vel);
+        Eigen::Vector<T, NumLink> G = getJointSpaceGravityCompensate(com_jac);
 
-        std::size_t ee_id = NumDof - 1;
+        std::size_t ee_id = NumLink - 1;
         while (ee_id > 0 && links_storage_[ee_id].joint.type == JointTypeFixed)
         {
             --ee_id;
         }
 
-        Eigen::Matrix<T, 6, NumDof> J = com_jac[ee_id];
-        Eigen::Matrix<T, 6, NumDof> J_dot = com_jac_dot[ee_id];
-        Eigen::Matrix<T, NumDof, 6> J_inv;
+        Eigen::Matrix<T, 6, NumLink> J = com_jac[ee_id];
+        Eigen::Matrix<T, 6, NumLink> J_dot = com_jac_dot[ee_id];
+        Eigen::Matrix<T, NumLink, 6> J_inv;
         if ((J * J.transpose()).determinant() > 1e-6)
         {
             J_inv = J.transpose() * (J * J.transpose()).inverse();
@@ -609,13 +620,14 @@ public:
             Lambda = Lambda_inv.completeOrthogonalDecomposition().pseudoInverse();
         }
 
-        Eigen::Matrix<T, 6, 1> mu = J_inv.transpose() * (C * joint_vel + G) - Lambda * (J_dot * joint_vel);
+        Eigen::Vector<T, 6> mu = J_inv.transpose() * (C * joint_vel + G) - Lambda * (J_dot * joint_vel);
 
         return std::make_tuple(Lambda, mu);
     }
 
 private:
-    std::array<RigidBody<T>, NumDof> links_storage_;
+    Eigen::Matrix<T, 4, 4> base_transform_;
+    std::array<RigidBody<T>, NumLink> links_storage_;
 
     const static Eigen::Matrix<T, 4, 4> getTransformFromRotationAndTranslation(T x, T y, T z, T roll, T pitch, T yaw)
     {
@@ -640,18 +652,36 @@ private:
         return I;
     }
 
-    std::shared_ptr<TreeNode<RigidBody<T>*>> findParent(const RigidBody<T>* body) const
+    Eigen::Vector<T, NumDof> squeeze(const Eigen::Vector<T, NumLink>& vec) const
     {
-        auto node = this->find(body);
-        auto parent = node ? node->parent.lock() : nullptr;
-        return parent;
+        Eigen::Vector<T, NumDof> sq_vec = Eigen::Vector<T, NumDof>::Zero();
+
+        for ( int i=0, j=0 ; i<NumLink ; i++ )
+        {
+            if ( this->links_storage_[i].joint.type == JointType::JointTypeRevolute ||
+                 this->links_storage_[i].joint.type == JointType::JointTypePrismatic )
+            {
+                sq_vec(j) = vec(i);
+                j++;
+            }
+        }
+
+        return sq_vec;
     }
 
-    const TreeNode<RigidBody<T>*>* getTreeNodeParent(const RigidBody<T>* body) const
+    Eigen::Vector<T, NumLink> expand(const Eigen::Vector<T, NumDof>& vec) const
     {
-        auto node = this->find(body);
-        auto parent_node = node ? node->parent.lock() : nullptr;
-        return parent_node ? parent_node->data : nullptr;
+        Eigen::Vector<T, NumLink> ex_vec = Eigen::Vector<T, NumLink>::Zero();
+
+        for ( int i=0, j=0 ; i<NumLink ; i++ )
+        {
+            if ( this->links_storage_[i].joint.type == JointType::JointTypeRevolute ||
+                 this->links_storage_[i].joint.type == JointType::JointTypePrismatic )
+            {
+                ex_vec(i) = vec(j);
+                j++;
+            }
+        }
     }
 };
 
