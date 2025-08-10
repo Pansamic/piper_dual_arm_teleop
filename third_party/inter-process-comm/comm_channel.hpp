@@ -19,6 +19,7 @@
 #include <unordered_map>
 #include <utility>
 #include <asio.hpp>
+#include <iostream>
 
 #include "msgs/common.hpp"
 #include "itc/MsgQueue.hpp"
