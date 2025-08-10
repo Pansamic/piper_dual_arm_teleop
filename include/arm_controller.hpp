@@ -70,7 +70,7 @@ public:
                 // target_joint_state.joint_acc +
                 Kd.cwiseProduct(- current_joint_state.joint_vel) +
                 Kp.cwiseProduct(target_joint_state.joint_pos - current_joint_state.joint_pos)) +
-            coriolis_matrix * target_joint_state.joint_vel;
+            coriolis_matrix * current_joint_state.joint_vel;
  
         control_output += computeGravityCompensate(model, current_joint_state);
         control_output += computeFrictionCompensate(current_joint_state);
@@ -100,9 +100,8 @@ public:
         const JointState<T, NumDof>& joint_state) const
     {
         auto [link_transform, link_com_transform] = model.getTransform(joint_state.joint_pos);
-        auto link_com_jacobian = model.getLinkSpaceJacobian(link_transform);
+        auto link_com_jacobian = model.getLinkComSpaceJacobian(link_transform, link_com_transform);
         auto gravity_compensate = model.getJointSpaceGravityCompensate(link_com_jacobian);
-
         return gravity_compensate;
     }
     Eigen::Vector<T, NumDof> computeFrictionCompensate(

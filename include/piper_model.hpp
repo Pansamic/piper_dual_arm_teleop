@@ -446,7 +446,6 @@ public:
         gravity_compensate.setZero();
 
         Eigen::Matrix<T, 3, NumDof> J_v;
-        Eigen::Matrix<T, 3, NumDof> J_w;
         /* reverse of gravity force */
         static const Eigen::Vector<T, 3> base_gravity(0, 0, 9.81);
 
@@ -454,8 +453,6 @@ public:
         {
             /* Extract linear velocity part of jacobian matrix */
             J_v = link_com_jacobian[i].template block<3, NumDof>(0, 0);
-            /* Extract angular velocity part of jacobian matrix */
-            J_w = link_com_jacobian[i].template block<3, NumDof>(3, 0);
             
             gravity_compensate = gravity_compensate +
                 J_v.transpose() * (mass_[i] * base_gravity);
