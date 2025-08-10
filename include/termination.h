@@ -17,13 +17,13 @@
 class TerminationHandler
 {
 public:
-    inline static std::atomic<bool> stop_requested;
+    inline static bool stop_requested;
 
     static void signalHandler(int signal)
     {
         if (signal == SIGINT)
         {
-            stop_requested.store(true, std::memory_order_release);
+            stop_requested = true;
         }
     }
 
