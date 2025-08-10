@@ -312,6 +312,20 @@ public:
         return findHelper(root_, value);
     }
 
+    std::shared_ptr<TreeNode<T>> findParent(const T& value) const
+    {
+        auto node = this->find(value);
+        auto parent = node ? node->parent.lock() : nullptr;
+        return parent;
+    }
+
+    std::vector<std::shared_ptr<TreeNode<T>>> getChildren(const T& value) const
+    {
+        auto node = this->find(value);
+        auto children = node ? node->children : std::vector<std::shared_ptr<TreeNode<T>>>{};
+        return children;
+    }
+
     // Get height of the tree
     int getHeight() const
     {
