@@ -14,12 +14,12 @@
 
 #pragma once
 
-#include <iostream>
 #include <span>
 #include <variant>
 #include <unordered_map>
 #include <utility>
 #include <asio.hpp>
+#include <iostream>
 
 #include "msgs/common.hpp"
 #include "itc/MsgQueue.hpp"
@@ -66,7 +66,7 @@ public:
   }
 
   CommChannel(asio::io_context &io_context, std::string_view local_path, std::string_view remote_path) requires(Mode == ChannelMode::Unix)
-      : local_endpoint_(createEp(local_path)), remote_endpoint_(UnixEp(std::string(remote_path))), socket_(io_context), timer_(io_context) {
+      : local_endpoint_(createEp(local_path)), remote_endpoint_(UnixEp(remote_path)), socket_(io_context), timer_(io_context) {
     socket_.open();
     socket_.bind(local_endpoint_);
   }
@@ -185,7 +185,7 @@ private:
 
   static UnixEp createEp(std::string_view sv) requires(Mode == ChannelMode::Unix) {
     std::remove(std::string(sv).c_str());
-    return UnixEp(std::string(sv));
+    return UnixEp(sv);
   }
 
   asio::steady_timer timer_;

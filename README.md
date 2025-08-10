@@ -25,9 +25,9 @@ Use script/plot_arm_pos_cmd.py to parse the joint positions commands to dual arm
 ## todo
 
 - [ ] Refactor arm model as rigid body tree.
-- [ ] Create a config file to replace some constants like ArmModel::num_dof_ and ArmPlanner::num_plan_waypoint_.
+- [ ] Create a config file to replace some constants like  PiperArmNumDof and ArmPlanner::num_plan_waypoint_.
 - [x] Remove linear and quintic polynomial interpolation methods in `TrajectoryBuffer`.
-- [ ] Replace `JointState` in `TrajectoryBuffer::TrajectoryPoint` with `Eigen::Vector<double, ArmModel::num_dof_> joint_pos`
+- [ ] Replace `JointState` in `TrajectoryBuffer::TrajectoryPoint` with `Eigen::Vector<double,  PiperArmNumDof> joint_pos`
 - [ ] Penalize deviation from previous joint position in damped least square inverse kinematics. Cost function: $ cost = \|J^# e\|^2 + \lambda \|q - q_{prev}\|^2 $.
 - [ ] Try gradient-based optimizer to solve for inverse kinematics.
 - [ ] Program terminated when simulator window is closed by user.

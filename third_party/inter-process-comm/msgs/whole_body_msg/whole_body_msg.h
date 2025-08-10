@@ -3,6 +3,7 @@
 
 struct whole_body_msg {
   using vec4 = std::array<float, 4>;
+  using vec6 = std::array<float, 6>;
   // mask explanation
   // enable: 1
   // disable: 0
@@ -13,21 +14,12 @@ struct whole_body_msg {
   uint64_t time;  // timestamp unit: ns
 
   vec4 base_pos;        // global position of baselink in FLU coordinate
-  vec4 left_hand_pos;   // position of left hand relative to base in FLU coordinate
-  vec4 right_hand_pos;  // position of right hand relative to base in FLU coordinate
-
   vec4 base_quat;        //
-  vec4 left_hand_quat;   //
-  vec4 right_hand_quat;  //
-
   vec4 base_lin_vel;  // relative velocity of base in FLU coordinate
   vec4 base_ang_vel;  // relative angular velocity of base in FLU coordinate
 
-  vec4 left_hand_lin_vel;   // relative velocity of left hand in FLU coordinate
-  vec4 right_hand_lin_vel;  // relative velocity of right hand in FLU coordinate
-
-  vec4 left_hand_ang_vel;   // relative angular velocity of left hand in FLU coordinate
-  vec4 right_hand_ang_vel;  // relative angular velocity of right hand in FLU coordinate
+  vec6 left_arm_joint_pos;
+  vec6 right_arm_joint_pos;
 
   float left_grip, right_grip;
 };
