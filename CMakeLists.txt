@@ -2,55 +2,24 @@ cmake_minimum_required(VERSION 3.10)
 
 cmake_policy(SET CMP0072 NEW)
 
-project(pathfinder_control)
+project(piper_dual_arm_teleop)
 
 enable_language(C)
 enable_language(CXX)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-add_definitions(
-    -DPROJECT_PATH="${CMAKE_CURRENT_SOURCE_DIR}"
-)
+option(BUILD_CLIENT "Build real hardware piper arm controller client" ON)
+option(BUILD_SERVER "Build MuJoCo GUI simulator server" ON)
 
-add_executable(deploy
-    src/arm_controller.cpp
-    src/arm_hardware_interface.cpp
-    src/arm_ik.cpp
-    src/arm_planner.cpp
-    src/deploy.cpp
-    src/teleop_task_runner.cpp
-)
-target_include_directories(deploy PRIVATE
-    include
-    third_party/asio-1.12.2/include
-    third_party/eigen-3.4.0
-    third_party/spdlog-1.15.3/include
-    third_party/inter-process-comm/itc
-    third_party/inter-process-comm
-)
-target_link_libraries(deploy
-    pthread
-)
+add_definitions(-DPROJECT_PATH="${CMAKE_CURRENT_SOURCE_DIR}")
 
-# add_executable(tool src/tool.cpp)
-# add_executable(test src/test.cpp)
-# target_include_directories(test PRIVATE
-#     include
-#     third_party/eigen-3.4.0
-# )
-
-if(BUILD_TESTING)
+if ( BUILD_SERVER )
     set(OpenGL_GL_PREFERENCE "GLVND")
     find_package(OpenGL REQUIRED)
     find_package(glfw3 REQUIRED)
-    add_executable(simulate
-        src/arm_controller.cpp
-        src/arm_ik.cpp
-        src/arm_planner.cpp
-        src/arm_simulation_interface.cpp
-        src/simulate.cpp
-        src/teleop_task_runner.cpp
+    add_executable(server
+        src/server.cpp
         third_party/mujoco-3.3.2-linux-x86_64/simulate/glfw_adapter.cc
         third_party/mujoco-3.3.2-linux-x86_64/simulate/glfw_dispatch.cc
         third_party/mujoco-3.3.2-linux-x86_64/simulate/platform_ui_adapter.cc
@@ -59,7 +28,7 @@ if(BUILD_TESTING)
         third_party/lodepng/lodepng_fuzzer.cpp
         third_party/lodepng/lodepng_util.cpp
     )
-    target_include_directories(simulate PRIVATE
+    target_include_directories(server PRIVATE
         include
         third_party/spdlog-1.15.3/include
         third_party/asio-1.12.2/include
@@ -70,13 +39,17 @@ if(BUILD_TESTING)
         third_party/inter-process-comm/itc
         third_party/inter-process-comm
     )
-    target_link_directories(simulate PRIVATE
+    target_link_directories(server PRIVATE
         third_party/mujoco-3.3.2-linux-x86_64/lib
     )
-    target_link_libraries(simulate PRIVATE
+    target_link_libraries(server PRIVATE
         OpenGL::GL
         glfw
         libmujoco.so
         pthread
     )
+endif()
+
+if ( BUILD_CLIENT )
+    add_executable(client src/client.cpp)
 endif()
