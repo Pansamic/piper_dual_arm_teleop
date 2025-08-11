@@ -41,39 +41,17 @@ public:
             throw std::runtime_error("MuJoCo failed to make data");
         }
     }
-    ~MujocoBackend() = default;
-    void start()
+    ~MujocoBackend()
     {
-        if (this->mujoco_engine_thread_.joinable())
-        {
-            return;
-        }
-
-        this->running_ = true;
-        this->mujoco_engine_thread_ = std::thread([this]()
-        {
-            while (this->running_)
-            {
-                {
-                    std::lock_guard<std::mutex>(this->mutex_);
-                    mj_step(this->mujoco_model_, this->mujoco_data_);
-                }
-                // Add a small delay to prevent excessive CPU usage
-                std::this_thread::sleep_for(std::chrono::milliseconds(1));
-            }
-        });
-    }
-    void stop()
-    {
-        this->running_ = false;
-        if (this->mujoco_engine_thread_.joinable())
-        {
-            this->mujoco_engine_thread_.join();
-        }
         if ( this->mujoco_data_ != nullptr )
             mj_deleteData(this->mujoco_data_);
         if ( this->mujoco_model_ != nullptr )
             mj_deleteModel(this->mujoco_model_);
+    }
+    void update()
+    {
+        std::lock_guard<std::mutex>(this->mutex_);
+        mj_step(this->mujoco_model_, this->mujoco_data_);
     }
     mjModel* getMujocoModel()
     {
@@ -264,6 +242,4 @@ private:
     mutable std::mutex mutex_;
     mjModel* mujoco_model_;
     mjData* mujoco_data_;
-    bool running_ = false;
-    std::thread mujoco_engine_thread_;
 };
