@@ -84,13 +84,13 @@ public:
         // Convert double to float for left arm
         std::array<float, 6> left_arm_joint_pos_float;
         std::transform(left_arm_joint_pos.begin(), left_arm_joint_pos.end(), left_arm_joint_pos_float.begin(),
-                       [](const double& val) { return static_cast<float>(val); });
+                       [](const T& val) { return static_cast<float>(val); });
         msg.left_arm_joint_pos = left_arm_joint_pos_float;
         
         // Convert double to float for right arm
         std::array<float, 6> right_arm_joint_pos_float;
         std::transform(right_arm_joint_pos.begin(), right_arm_joint_pos.end(), right_arm_joint_pos_float.begin(),
-                       [](const double& val) { return static_cast<float>(val); });
+                       [](const T& val) { return static_cast<float>(val); });
         msg.right_arm_joint_pos = right_arm_joint_pos_float;
         
         this->send_mq_.enqueue(msg);
