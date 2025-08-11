@@ -154,6 +154,7 @@ public:
 
     void stop()
     {
+        disableAllMotors(20);
         listening_ = false;
         listen_thread_.join();
         if (can_socket_ >= 0) 
@@ -290,15 +291,44 @@ public:
      * @brief Disable all joint motors.
      * @return true if command sent successfully.
      */
-    bool disableAllMotors() 
+    bool disableAllMotors(std::size_t trials) 
     {
-        struct can_frame frame;
-        frame.can_id = 0x471;
-        frame.can_dlc = 8;
-        std::memset(frame.data, 0, 8);
-        frame.data[0] = 0x07;  // All joints
-        frame.data[1] = 0x01;  // Disable
-        return sendCanFrame(frame);
+        auto disable_all_motors = [this]()
+        {
+            struct can_frame frame;
+            frame.can_id = 0x471;
+            frame.can_dlc = 8;
+            std::memset(frame.data, 0, 8);
+            frame.data[0] = 0x07;  // All joints
+            frame.data[1] = 0x01;  // Disable
+            return sendCanFrame(frame);
+        };
+        bool arm_disabled = false;
+        LOG_INFO("start to disable actuators on interface {}", can_interface_);
+        for ( std::size_t i=0 ; i<trials ; i++ )
+        {
+            disable_all_motors();
+            std::this_thread::sleep_for(std::chrono::milliseconds(50));
+            std::array<bool, 6> disable_status;
+            for ( std::size_t j=0 ; j<6 ; j++ )
+            {
+                disable_status[j] = !isJointEnabled(j);
+            }
+            if ( std::all_of(disable_status.begin(), disable_status.end(), [&](const bool& val){return val==true;}) )
+            {
+                arm_disabled = true;
+                LOG_INFO("interface {} actuators are all disabled.", can_interface_);
+                break;
+            }
+            else
+            {
+                LOG_WARN("interface {} actuator disable status:[1]{},[2]{},[3]{},[4]{},[5]{},[6]{}",
+                    can_interface_,
+                    disable_status[0], disable_status[1], disable_status[2],
+                    disable_status[3], disable_status[4], disable_status[5]);
+            }
+        }
+        return arm_disabled;
     }
 
     /**
