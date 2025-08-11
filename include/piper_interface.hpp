@@ -99,19 +99,59 @@ public:
             can_socket_ = -1;
         }
     }
-
     /**
-     * @brief Initialize the CAN interface and connect to the robot.
-     * @return true if successful, false otherwise.
+     * @brief Initialize CAN interface using SocketCAN.
+     * @return true if successful.
      */
-    bool initialize() 
+    bool initCan()
     {
-        if (!initCan()) return false;
-        if (!enableAllMotors()) return false;
-        if (!enterCANControlMode()) return false;
+        struct stat st;
+        std::string can_file_path = "/sys/class/net/" + this->can_interface_;
+        if (stat(can_file_path.c_str(), &st) != 0)
+        {
+            LOG_ERROR("CAN interface {} does not exist", this->can_interface_);
+            return false;
+        }
+        struct ifreq ifr;
+        struct sockaddr_can addr;
+
+        // Create socket
+        can_socket_ = socket(PF_CAN, SOCK_RAW, CAN_RAW);
+        if (can_socket_ < 0) 
+        {
+            LOG_ERROR("Failed to create CAN socket");
+            return false;
+        }
+
+        // Set up address
+        std::strcpy(ifr.ifr_name, can_interface_.c_str());
+        if (ioctl(can_socket_, SIOCGIFINDEX, &ifr) < 0) 
+        {
+            LOG_ERROR("Failed to get CAN interface index");
+            close(can_socket_);
+            can_socket_ = -1;
+            return false;
+        }
+
+        addr.can_family = AF_CAN;
+        addr.can_ifindex = ifr.ifr_ifindex;
+
+        // Bind socket
+        if (bind(can_socket_, (struct sockaddr*)&addr, sizeof(addr)) < 0) 
+        {
+            LOG_ERROR("Failed to bind CAN socket");
+            close(can_socket_);
+            can_socket_ = -1;
+            return false;
+        }
+
+        // Set socket to non-blocking
+        int flags = fcntl(can_socket_, F_GETFL, 0);
+        fcntl(can_socket_, F_SETFL, flags | O_NONBLOCK);
+
+        LOG_INFO("Successfully initialized CAN interface: {}", can_interface_);
         return true;
     }
-
 private:
     std::string can_interface_;
     int can_socket_;
@@ -595,6 +635,11 @@ public:
         return cartesian_pos[idx];
     }
 
+    bool getMotorEnabled(int idx) const
+    {
+        return joint_driver_ls[idx].bits.enabled;
+    }
+
     // Fault bit accessors
     bool isJointCommError(int joint) const 
     {
@@ -650,52 +695,7 @@ public:
     }
 
 private:
-    /**
-     * @brief Initialize CAN interface using SocketCAN.
-     * @return true if successful.
-     */
-    bool initCan() 
-    {
-        struct ifreq ifr;
-        struct sockaddr_can addr;
 
-        // Create socket
-        can_socket_ = socket(PF_CAN, SOCK_RAW, CAN_RAW);
-        if (can_socket_ < 0) 
-        {
-            LOG_ERROR("Failed to create CAN socket");
-            return false;
-        }
-
-        // Set up address
-        std::strcpy(ifr.ifr_name, can_interface_.c_str());
-        if (ioctl(can_socket_, SIOCGIFINDEX, &ifr) < 0) 
-        {
-            LOG_ERROR("Failed to get CAN interface index");
-            close(can_socket_);
-            can_socket_ = -1;
-            return false;
-        }
-
-        addr.can_family = AF_CAN;
-        addr.can_ifindex = ifr.ifr_ifindex;
-
-        // Bind socket
-        if (bind(can_socket_, (struct sockaddr*)&addr, sizeof(addr)) < 0) 
-        {
-            LOG_ERROR("Failed to bind CAN socket");
-            close(can_socket_);
-            can_socket_ = -1;
-            return false;
-        }
-
-        // Set socket to non-blocking
-        int flags = fcntl(can_socket_, F_GETFL, 0);
-        fcntl(can_socket_, F_SETFL, flags | O_NONBLOCK);
-
-        LOG_INFO("Successfully initialized CAN interface: {}", can_interface_);
-        return true;
-    }
 
     /**
      * @brief Send a CAN frame using SocketCAN.
