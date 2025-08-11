@@ -910,8 +910,11 @@ int main(void)
 
     auto update_control = [&]()
     {
+        std::array<double, NumDof> left_arm_target_joint_pos, right_arm_target_joint_pos;
         {
             auto [target_joint_pos, target_joint_vel, target_joint_acc] = left_arm_trajectory_buffer.interpolate(std::chrono::steady_clock::now());
+            for ( int i=0 ; i<NumDof ; i++ )
+                left_arm_target_joint_pos[i] = target_joint_pos(i);
             JointState<double, NumDof> target_joint_state = {target_joint_pos, target_joint_vel, target_joint_acc};
             JointState<double, NumDof> current_joint_state = {interface.getLeftArmJointPosition(), interface.getLeftArmJointVelocity(), interface.getLeftArmJointAcceleration()};
             auto target_joint_torque = controller.computeTorqueControlOutput(left_arm_model, Eigen::Vector<double, 3>::Zero(), target_joint_state, current_joint_state);
@@ -933,6 +936,8 @@ int main(void)
         }
         {
             auto [target_joint_pos, target_joint_vel, target_joint_acc] = right_arm_trajectory_buffer.interpolate(std::chrono::steady_clock::now());
+            for ( int i=0 ; i<NumDof ; i++ )
+                right_arm_target_joint_pos[i] = target_joint_pos(i);
             JointState<double, NumDof> target_joint_state = {target_joint_pos, target_joint_vel, target_joint_acc};
             JointState<double, NumDof> current_joint_state = {interface.getRightArmJointPosition(), interface.getRightArmJointVelocity(), interface.getRightArmJointAcceleration()};
             auto target_joint_torque = controller.computeTorqueControlOutput(right_arm_model, Eigen::Vector<double, 3>::Zero(), target_joint_state, current_joint_state);
@@ -952,8 +957,7 @@ int main(void)
                 current_joint_state.joint_vel(0), current_joint_state.joint_vel(1), current_joint_state.joint_vel(2),
                 current_joint_state.joint_vel(3), current_joint_state.joint_vel(4), current_joint_state.joint_vel(5));            
         }
-
-
+        msg_sender.send<double>(true, left_arm_target_joint_pos, right_arm_target_joint_pos);
     };
 
     struct timespec wakeup_time = {0, 0};

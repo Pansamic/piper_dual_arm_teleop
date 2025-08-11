@@ -81,8 +81,18 @@ public:
         {
             msg.mask = (1<<15) | (1<<13) | (1<<12);
         }
-        msg.left_arm_joint_pos = left_arm_joint_pos;
-        msg.right_arm_joint_pos = right_arm_joint_pos;
+        // Convert double to float for left arm
+        std::array<float, 6> left_arm_joint_pos_float;
+        std::transform(left_arm_joint_pos.begin(), left_arm_joint_pos.end(), left_arm_joint_pos_float.begin(),
+                       [](const double& val) { return static_cast<float>(val); });
+        msg.left_arm_joint_pos = left_arm_joint_pos_float;
+        
+        // Convert double to float for right arm
+        std::array<float, 6> right_arm_joint_pos_float;
+        std::transform(right_arm_joint_pos.begin(), right_arm_joint_pos.end(), right_arm_joint_pos_float.begin(),
+                       [](const double& val) { return static_cast<float>(val); });
+        msg.right_arm_joint_pos = right_arm_joint_pos_float;
+        
         this->send_mq_.enqueue(msg);
         return true;
     }
@@ -103,8 +113,15 @@ public:
         enable = (msg.mask & (1<<15)) && (msg.mask & (1<<13)) && (msg.mask & (1<<12));
         if ( enable )
         {
-            left_arm_joint_pos = msg.left_arm_joint_pos;
-            right_arm_joint_pos = msg.right_arm_joint_pos;
+            // Convert float to double (or other type T) for left arm
+            std::array<float, 6> temp_left_arm_joint_pos = msg.left_arm_joint_pos;
+            std::transform(temp_left_arm_joint_pos.begin(), temp_left_arm_joint_pos.end(), left_arm_joint_pos.begin(),
+                           [](const float& val) { return static_cast<T>(val); });
+            
+            // Convert float to double (or other type T) for right arm
+            std::array<float, 6> temp_right_arm_joint_pos = msg.right_arm_joint_pos;
+            std::transform(temp_right_arm_joint_pos.begin(), temp_right_arm_joint_pos.end(), right_arm_joint_pos.begin(),
+                           [](const float& val) { return static_cast<T>(val); });
         }
         return true;
     }
