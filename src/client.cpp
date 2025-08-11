@@ -38,7 +38,7 @@ int main(void)
         while(!TerminationHandler::stop_requested){right_arm_interface.queryState();}});
     
     LOG_INFO("start to enable actuators.");
-    static const int trails = 10;
+    static const int trails = 100;
     bool left_arm_enabled = false;
     bool right_arm_enabled = false;
     for ( int i=0 ; i<trails ; i++ )
@@ -80,6 +80,8 @@ int main(void)
     if ( !left_arm_enabled || !right_arm_enabled )
     {
         LOG_ERROR("failed to enable dual arms, exiting...");
+        msg_receiver.stop();
+        spdlog::drop_all();
         return 0;
     }
 
