@@ -14,7 +14,6 @@
 #include <Eigen/Core>
 #include <joint_state.h>
 #include <piper_model.hpp>
-#include <log.hpp>
 
 template <typename T, std::size_t NumLink, std::size_t NumDof>
 class ArmController
