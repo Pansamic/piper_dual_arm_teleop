@@ -850,62 +850,52 @@ int main(void)
     BsplineTrajectoryBuffer<double, NumDof> left_arm_trajectory_buffer;
     BsplineTrajectoryBuffer<double, NumDof> right_arm_trajectory_buffer;
 
-    auto update_plan = [&]()
+    auto update_plan_left_arm = [&]()
     {
+        Eigen::Vector<double, 3> left_hand_mocap_pos = interface.getLeftHandSitePosition();
+        Eigen::Matrix<double, 3, 3> left_hand_mocap_ori = interface.getLeftHandSiteOrientation();
+        Eigen::Matrix<double, 4, 4> left_hand_mocap_pose = Eigen::Matrix<double, 4, 4>::Identity();
+        left_hand_mocap_pose.block<3, 3>(0, 0) = left_hand_mocap_ori;
+        left_hand_mocap_pose.block<3, 1>(0, 3) = left_hand_mocap_pos;
+        Eigen::Vector<double, NumDof> actual_left_arm_joint_pos = interface.getLeftArmJointPosition();
+        Eigen::Vector<double, NumDof> ik_result = Eigen::Vector<double, NumDof>::Zero();
+        if ( left_arm_model.getInverseKinematics(ik_result, left_hand_mocap_pose, actual_left_arm_joint_pos) == ErrorCode::NoResult)
         {
-            Eigen::Vector<double, 3> left_hand_mocap_pos = interface.getLeftHandSitePosition();
-            Eigen::Matrix<double, 3, 3> left_hand_mocap_ori = interface.getLeftHandSiteOrientation();
-            Eigen::Matrix<double, 4, 4> left_hand_mocap_pose = Eigen::Matrix<double, 4, 4>::Identity();
-            left_hand_mocap_pose.block<3, 3>(0, 0) = left_hand_mocap_ori;
-            left_hand_mocap_pose.block<3, 1>(0, 3) = left_hand_mocap_pos;
-            // Eigen::Matrix<double, 4, 4> left_hand_mocap_pose = Eigen::Matrix<double, 4, 4>::Identity();
-            // left_hand_mocap_pose.block<3, 3>(0, 0) = Eigen::Quaternion<double>(0.71, 0, 0.71, 0).toRotationMatrix();
-            // left_hand_mocap_pose(0, 3) = 0.6;
-            // left_hand_mocap_pose(1, 3) = 0.2;
-            // left_hand_mocap_pose(2, 3) = 0.8;
-            Eigen::Vector<double, NumDof> actual_left_arm_joint_pos = interface.getLeftArmJointPosition();
-            Eigen::Vector<double, NumDof> ik_result = Eigen::Vector<double, NumDof>::Zero();
-            // ErrorCode err = left_arm_model.getDampedLeastSquareInverseKinematics(
-            //     ik_result, left_arm_model, 0.1, Eigen::Vector<double, 6>(0.05,0.05,0.05,0.1,0.1,0.1), 200, 
-            //     left_hand_mocap_pose, actual_left_arm_joint_pos);
-            ErrorCode err = left_arm_model.getInverseKinematics(ik_result, left_hand_mocap_pose, actual_left_arm_joint_pos);
-            if ( err == ErrorCode::NoResult )
+            if ( left_arm_model.getDampedLeastSquareInverseKinematics(ik_result, left_arm_model, left_hand_mocap_pose, actual_left_arm_joint_pos) == ErrorCode::NoResult )
             {
-                LOG_ERROR("left arm inverse kinematics fails.");
+                LOG_WARN("left arm inverse kinematics fails.");
+                return ;
             }
-            auto [target_left_arm_joint_pos, left_arm_joint_vel, left_arm_joint_acc] = left_arm_trajectory_buffer.interpolate(std::chrono::steady_clock::now());
-            auto [time_point, trajectory] = LinearArmPlanner::plan<double, NumDof, CONFIG_WAYPOINT_AMOUNT>(
-                std::chrono::steady_clock::now(), 1.0/CONFIG_PLANNER_FREQUENCY,
-                target_left_arm_joint_pos, ik_result);
-            left_arm_trajectory_buffer.write(time_point, trajectory);
         }
+        auto [target_left_arm_joint_pos, left_arm_joint_vel, left_arm_joint_acc] = left_arm_trajectory_buffer.interpolate(std::chrono::steady_clock::now());
+        auto [time_point, trajectory] = LinearArmPlanner::plan<double, NumDof, CONFIG_WAYPOINT_AMOUNT>(
+            std::chrono::steady_clock::now(), 1.0/CONFIG_PLANNER_FREQUENCY,
+            target_left_arm_joint_pos, ik_result);
+        left_arm_trajectory_buffer.write(time_point, trajectory);
+    };
+
+    auto update_plan_right_arm = [&]()
+    {
+        Eigen::Vector<double, 3> right_hand_mocap_pos = interface.getRightHandSitePosition();
+        Eigen::Matrix<double, 3, 3> right_hand_mocap_ori = interface.getRightHandSiteOrientation();
+        Eigen::Matrix<double, 4, 4> right_hand_mocap_pose = Eigen::Matrix<double, 4, 4>::Identity();
+        right_hand_mocap_pose.block<3, 3>(0, 0) = right_hand_mocap_ori;
+        right_hand_mocap_pose.block<3, 1>(0, 3) = right_hand_mocap_pos;
+        Eigen::Vector<double, NumDof> actual_right_arm_joint_pos = interface.getRightArmJointPosition();
+        Eigen::Vector<double, NumDof> ik_result = Eigen::Vector<double, NumDof>::Zero();
+        if ( right_arm_model.getInverseKinematics(ik_result, right_hand_mocap_pose, actual_right_arm_joint_pos) == ErrorCode::NoResult )
         {
-            Eigen::Vector<double, 3> right_hand_mocap_pos = interface.getRightHandSitePosition();
-            Eigen::Matrix<double, 3, 3> right_hand_mocap_ori = interface.getRightHandSiteOrientation();
-            Eigen::Matrix<double, 4, 4> right_hand_mocap_pose = Eigen::Matrix<double, 4, 4>::Identity();
-            right_hand_mocap_pose.block<3, 3>(0, 0) = right_hand_mocap_ori;
-            right_hand_mocap_pose.block<3, 1>(0, 3) = right_hand_mocap_pos;
-            // Eigen::Matrix<double, 4, 4> right_hand_mocap_pose = Eigen::Matrix<double, 4, 4>::Identity();
-            // right_hand_mocap_pose.block<3, 3>(0, 0) = Eigen::Quaternion<double>(0.71, 0, 0.71, 0).toRotationMatrix();
-            // right_hand_mocap_pose(0, 3) = 0.6;
-            // right_hand_mocap_pose(1, 3) = -0.2;
-            // right_hand_mocap_pose(2, 3) = 0.8;
-            Eigen::Vector<double, NumDof> actual_right_arm_joint_pos = interface.getRightArmJointPosition();
-            Eigen::Vector<double, NumDof> ik_result = Eigen::Vector<double, NumDof>::Zero();
-            // ErrorCode err = right_arm_model.getDampedLeastSquareInverseKinematics(
-            //     ik_result, right_arm_model, 0.1, Eigen::Vector<double, 6>(0.05,0.05,0.05,0.1,0.1,0.1), 200, 
-            //     right_hand_mocap_pose, actual_right_arm_joint_pos);
-            ErrorCode err = right_arm_model.getInverseKinematics(ik_result, right_hand_mocap_pose, actual_right_arm_joint_pos);
-            if ( err == ErrorCode::NoResult )
+            if ( right_arm_model.getDampedLeastSquareInverseKinematics(ik_result, right_arm_model, right_hand_mocap_pose, actual_right_arm_joint_pos) == ErrorCode::NoResult )
             {
-                LOG_ERROR("right arm inverse kinematics fails.");
+                LOG_WARN("right arm inverse kinematics fails.");
+                return ;
             }
-            auto [target_right_arm_joint_pos, right_arm_joint_vel, right_arm_joint_acc] = right_arm_trajectory_buffer.interpolate(std::chrono::steady_clock::now());
-            auto [time_point, trajectory] = LinearArmPlanner::plan<double, NumDof, CONFIG_WAYPOINT_AMOUNT>(
-                std::chrono::steady_clock::now(), 1.0/CONFIG_PLANNER_FREQUENCY,
-                target_right_arm_joint_pos, ik_result);
-            right_arm_trajectory_buffer.write(time_point, trajectory);
         }
+        auto [target_right_arm_joint_pos, right_arm_joint_vel, right_arm_joint_acc] = right_arm_trajectory_buffer.interpolate(std::chrono::steady_clock::now());
+        auto [time_point, trajectory] = LinearArmPlanner::plan<double, NumDof, CONFIG_WAYPOINT_AMOUNT>(
+            std::chrono::steady_clock::now(), 1.0/CONFIG_PLANNER_FREQUENCY,
+            target_right_arm_joint_pos, ik_result);
+        right_arm_trajectory_buffer.write(time_point, trajectory);                
     };
 
     auto update_control = [&]()
@@ -981,7 +971,8 @@ int main(void)
 
         if ( count == 10 )
         {
-            update_plan();
+            update_plan_left_arm();
+            update_plan_right_arm();
 
             count = 0;
         }
