@@ -86,19 +86,12 @@ public:
     };
 
     // Constructor
-    PiperInterface(const std::string& can_interface = "can0") 
-        : can_interface_(can_interface), can_socket_(-1) 
+    explicit PiperInterface(const std::string& can_interface = "can0") 
+        : can_interface_(can_interface), can_socket_(-1), listening_(false)
     {
     }
 
-    ~PiperInterface() 
-    {
-        if (can_socket_ >= 0) 
-        {
-            close(can_socket_);
-            can_socket_ = -1;
-        }
-    }
+    ~PiperInterface() = default;
     /**
      * @brief Initialize CAN interface using SocketCAN.
      * @return true if successful.
@@ -152,9 +145,29 @@ public:
         LOG_INFO("Successfully initialized CAN interface: {}", can_interface_);
         return true;
     }
+
+    void listen()
+    {
+        listening_ = true;
+        listen_thread_ = std::thread([this](){while(listening_){queryState();}});
+    }
+
+    void stop()
+    {
+        listening_ = false;
+        listen_thread_.join();
+        if (can_socket_ >= 0) 
+        {
+            close(can_socket_);
+            can_socket_ = -1;
+        }
+    }
 private:
     std::string can_interface_;
     int can_socket_;
+
+    bool listening_;
+    std::thread listen_thread_;
 
     // Feedback data structures
     struct 
@@ -233,15 +246,44 @@ public:
      * @brief Enable all joint motors.
      * @return true if command sent successfully.
      */
-    bool enableAllMotors() 
+    bool enableAllMotors(std::size_t trials) 
     {
-        struct can_frame frame;
-        frame.can_id = 0x471;
-        frame.can_dlc = 8;
-        std::memset(frame.data, 0, 8);
-        frame.data[0] = 0x07;  // All joints
-        frame.data[1] = 0x02;  // Enable
-        return sendCanFrame(frame);
+        auto enable_all_motors = [this]()
+        {
+            struct can_frame frame;
+            frame.can_id = 0x471;
+            frame.can_dlc = 8;
+            std::memset(frame.data, 0, 8);
+            frame.data[0] = 0x07;  // All joints
+            frame.data[1] = 0x02;  // Enable
+            return sendCanFrame(frame);
+        };
+        bool arm_enabled = false;
+        LOG_INFO("start to enable actuators on interface {}", can_interface_);
+        for ( std::size_t i=0 ; i<trials ; i++ )
+        {
+            enable_all_motors();
+            std::this_thread::sleep_for(std::chrono::milliseconds(50));
+            std::array<bool, 6> enable_status;
+            for ( std::size_t j=0 ; j<6 ; j++ )
+            {
+                enable_status[j] = getMotorEnabled(j);
+            }
+            if ( std::all_of(enable_status.begin(), enable_status.end(), [&](const bool& val){return val==true;}) )
+            {
+                arm_enabled = true;
+                LOG_INFO("interface {} actuators are all enabled.", can_interface_);
+                break;
+            }
+            else
+            {
+                LOG_WARN("interface {} actuator enable status:[1]{},[2]{},[3]{},[4]{},[5]{},[6]{}",
+                    can_interface_,
+                    enable_status[0], enable_status[1], enable_status[2],
+                    enable_status[3], enable_status[4], enable_status[5]);
+            }
+        }
+        return arm_enabled;
     }
 
     /**
