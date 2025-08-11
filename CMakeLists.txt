@@ -11,6 +11,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 option(BUILD_CLIENT "Build real hardware piper arm controller client" ON)
 option(BUILD_SERVER "Build MuJoCo GUI simulator server" ON)
+option(BUILD_TESTING OFF)
 
 add_definitions(-DPROJECT_PATH="${CMAKE_CURRENT_SOURCE_DIR}")
 
@@ -59,5 +60,23 @@ if ( BUILD_CLIENT )
         third_party/eigen-3.4.0
         third_party/inter-process-comm/itc
         third_party/inter-process-comm
+    )
+endif()
+
+if ( BUILD_TESTING )
+    add_executable(test_mujoco_backend
+        test/test_mujoco_backend.cpp
+    )
+    target_include_directories(test_mujoco_backend PRIVATE
+        include
+        third_party/eigen-3.4.0
+        third_party/mujoco-3.3.2-linux-x86_64/include
+    )
+    target_link_directories(test_mujoco_backend PRIVATE
+        third_party/mujoco-3.3.2-linux-x86_64/lib
+    )
+    target_link_libraries(test_mujoco_backend PRIVATE
+        libmujoco.so
+        pthread
     )
 endif()
