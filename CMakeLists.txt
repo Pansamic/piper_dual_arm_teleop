@@ -52,4 +52,12 @@ endif()
 
 if ( BUILD_CLIENT )
     add_executable(client src/client.cpp)
+    target_include_directories(client PRIVATE
+        include
+        third_party/spdlog-1.15.3/include
+        third_party/asio-1.12.2/include
+        third_party/eigen-3.4.0
+        third_party/inter-process-comm/itc
+        third_party/inter-process-comm
+    )
 endif()
