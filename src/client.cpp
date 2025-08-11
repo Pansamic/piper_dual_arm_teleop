@@ -24,7 +24,7 @@ int main(void)
     /* Register SIGINT handler. */
     TerminationHandler::setup();
 
-    Messenger<ChannelMode::UDP> msg_receiver(CONFIG_SERVER_IPV4_ADDRESS, CONFIG_SERVER_PORT, CONFIG_CLIENT_IPV4_ADDRESS, CONFIG_CLIENT_PORT);
+    Messenger<ChannelMode::UDP> msg_receiver(CONFIG_CLIENT_IPV4_ADDRESS, CONFIG_CLIENT_PORT, CONFIG_SERVER_IPV4_ADDRESS, CONFIG_SERVER_PORT);
     // Messenger<ChannelMode::Unix> msg_receiver(CONFIG_CLIENT_MSG_QUEUE, CONFIG_SERVER_MSG_QUEUE);
     msg_receiver.start(false, true);
 
