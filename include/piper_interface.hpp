@@ -149,7 +149,7 @@ public:
     void listen()
     {
         listening_ = true;
-        listen_thread_ = std::thread([this](){while(listening_){queryState();}});
+        listen_thread_ = std::thread([this](){while(listening_){queryState();processExceptions();}});
     }
 
     void stop()
@@ -267,7 +267,7 @@ public:
             std::array<bool, 6> enable_status;
             for ( std::size_t j=0 ; j<6 ; j++ )
             {
-                enable_status[j] = getMotorEnabled(j);
+                enable_status[j] = isJointEnabled(j);
             }
             if ( std::all_of(enable_status.begin(), enable_status.end(), [&](const bool& val){return val==true;}) )
             {
@@ -677,22 +677,63 @@ public:
         return cartesian_pos[idx];
     }
 
-    bool getMotorEnabled(int idx) const
+    // Fault bit accessors
+    bool isJointCommError(int idx) const 
+    {
+        if (idx < 0 || idx > 5) return false;
+        return state.fault_bits.joint_comm_error[idx];
+    }
+    
+    bool isJointAngleLimitExceeded(int idx) const 
+    {
+        if (idx < 0 || idx > 5) return false;
+        return state.fault_bits.joint_angle_limit_exceeded[idx];
+    }
+
+    bool isJointVoltageLow(int idx) const
+    {
+        if (idx < 0 || idx > 5) return false;
+        return joint_driver_ls[idx].bits.voltage_low;
+    }
+
+    bool isJointOverTemp(int idx) const
+    {
+        if (idx < 0 || idx > 5) return false;
+        return joint_driver_ls[idx].bits.motor_over_temp;
+    }
+
+    bool isJointDriverOverCurrent(int idx) const
+    {
+        if (idx < 0 || idx > 5) return false;
+        return joint_driver_ls[idx].bits.driver_over_current;
+    }
+
+    bool isJointDriverOverTemp(int idx) const
+    {
+        if (idx < 0 || idx > 5) return false;
+        return joint_driver_ls[idx].bits.driver_over_temp;
+    }
+
+    bool isJointInCollisionProtection(int idx) const
+    {
+        if (idx < 0 || idx > 5) return false;
+        return joint_driver_ls[idx].bits.collision_protection;
+    }
+
+    bool isJointDriverError(int idx) const
+    {
+        if (idx < 0 || idx > 5) return false;
+        return joint_driver_ls[idx].bits.driver_error;
+    }
+
+    bool isJointEnabled(int idx) const
     {
         return joint_driver_ls[idx].bits.enabled;
     }
 
-    // Fault bit accessors
-    bool isJointCommError(int joint) const 
+    bool isJointInStallProtection(int idx) const
     {
-        if (joint < 1 || joint > 6) return false;
-        return state.fault_bits.joint_comm_error[joint-1];
-    }
-    
-    bool isJointAngleLimitExceeded(int joint) const 
-    {
-        if (joint < 1 || joint > 6) return false;
-        return state.fault_bits.joint_angle_limit_exceeded[joint-1];
+        return joint_driver_ls[idx].bits.stall_protection;
     }
 
     // Gripper status accessors
@@ -737,7 +778,40 @@ public:
     }
 
 private:
-
+    void processExceptions()
+    {
+        for ( int i=0 ; i<6 ; i++ )
+        {
+            if ( isJointCommError(i) )
+                LOG_ERROR("interface {} joint {} communication error.", can_interface_, i);
+            if ( isJointAngleLimitExceeded(i) )
+                LOG_ERROR("interface {} joint {} exceeds limit.", can_interface_, i);
+            if ( isJointVoltageLow(i) )
+                LOG_ERROR("interface {} joint {} voltage low.", can_interface_, i);
+            if ( isJointOverTemp(i) )
+                LOG_ERROR("interface {} joint {} over temperature.", can_interface_, i);
+            if ( isJointDriverOverCurrent(i) )
+                LOG_ERROR("interface {} joint {} driver over current.", can_interface_, i);
+            if ( isJointDriverOverTemp(i) )
+                LOG_ERROR("interface {} joint {} driver over temperature.", can_interface_, i);
+            if ( isJointInCollisionProtection(i) )
+                LOG_ERROR("interface {} joint {} is in collision protection.", can_interface_, i);
+            if ( isJointInStallProtection(i) )
+                LOG_ERROR("interface {} joint {} is in stall protection.", can_interface_, i);
+            if ( isGripperVoltageLow() )
+                LOG_ERROR("interface {} gripper voltage low.", can_interface_, i);
+            if ( isGripperMotorOverTemp() )
+                LOG_ERROR("interface {} gripper motor over temperature.", can_interface_, i);
+            if ( isGripperDriverOverCurrent() )
+                LOG_ERROR("interface {} gripper driver over current.", can_interface_, i);
+            if ( isGripperDriverOverTemp() )
+                LOG_ERROR("interface {} gripper driver over temperature.", can_interface_, i);
+            if ( isGripperSensorError() )
+                LOG_ERROR("interface {} gripper sensor error.", can_interface_, i);
+            if ( isGripperDriverError() )
+                LOG_ERROR("interface {} gripper driver error.", can_interface_, i);
+        }
+    }
 
     /**
      * @brief Send a CAN frame using SocketCAN.
