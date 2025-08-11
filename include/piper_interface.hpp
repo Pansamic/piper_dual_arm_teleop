@@ -12,6 +12,7 @@
 #include <cstring>
 #include <functional>
 #include <vector>
+#include <array>
 #include <map>
 #include <unistd.h>
 #include <sys/socket.h>
@@ -27,6 +28,7 @@
 /**
  * @brief Class for controlling and communicating with the Piper robotic arm via CAN protocol.
  */
+template <typename T>
 class PiperInterface 
 {
 public:
@@ -134,8 +136,8 @@ private:
 
     struct 
     {
-        float travel_mm = 0.0f;
-        float torque_nm = 0.0f;
+        T travel_mm = 0.0;
+        T torque_nm = 0.0;
         uint8_t status = 0;
         // Status bits
         struct 
@@ -151,25 +153,25 @@ private:
         } bits;
     } gripper;
 
-    float joint_angles[6] = {0};
-    float cartesian_pos[6] = {0};  // x, y, z, rx, ry, rz
+    T joint_angles[6] = {0};
+    T cartesian_pos[6] = {0};  // x, y, z, rx, ry, rz
 
     // Joint driver feedback (high speed)
     struct JointDriverHS 
     {
-        float speed_rad_per_sec = 0.0f;  // 0.001 rad/s
-        float current_a = 0.0f;          // 0.001 A
-        float position_rad = 0.0f;       // rad
+        T speed_rad_per_sec = 0.0;  // 0.001 rad/s
+        T current_a = 0.0;          // 0.001 A
+        T position_rad = 0.0;       // rad
     };
     JointDriverHS joint_driver_hs[6];
 
     // Joint driver feedback (low speed)
     struct JointDriverLS 
     {
-        float voltage_v = 0.0f;          // 0.1 V
-        float driver_temp_c = 0.0f;      // 1°C
+        T voltage_v = 0.0;          // 0.1 V
+        T driver_temp_c = 0.0;      // 1°C
         int8_t motor_temp_c = 0;
-        float bus_current_a = 0.0f;      // 0.001 A
+        T bus_current_a = 0.0;      // 0.001 A
         uint8_t driver_status = 0;
         // Status bits
         struct 
@@ -233,14 +235,16 @@ public:
 
     /**
      * @brief Set control mode and motion parameters.
-     * @param mode Control mode.
+     * 
      * @param move_mode Motion type (MOVE_J, MOVE_P, etc.).
+     * @param enable_mit_mode Whether to enable MIT control mode.
+     * @param mode Control mode.
      * @param speed_percentage Speed percentage (0-100).
      * @param dwell_time Dwell time for offline trajectory (0-254 seconds, 255 to terminate).
      * @param installation Installation pose.
      * @return true if command sent successfully.
      */
-    bool setControlMode(ControlMode mode, MoveMode move_mode, uint8_t speed_percentage,
+    bool setControlMode(MoveMode move_mode, bool enable_mit_mode = false, ControlMode mode = ControlMode::CAN_CONTROL_MODE, uint8_t speed_percentage = 100,
                         uint8_t dwell_time = 0, InstallationPose installation = HORIZONTAL) 
     {
         if (speed_percentage > 100) speed_percentage = 100;
@@ -251,6 +255,7 @@ public:
         frame.data[0] = static_cast<uint8_t>(mode);
         frame.data[1] = static_cast<uint8_t>(move_mode);
         frame.data[2] = speed_percentage;
+        frame.data[3] = enable_mit_mode ? 0xAD : 0x00;
         frame.data[4] = dwell_time;
         frame.data[5] = static_cast<uint8_t>(installation);
         return sendCanFrame(frame);
@@ -260,8 +265,8 @@ public:
      * @brief Set target Cartesian position (X, Y, Z) and orientation (RX, RY, RZ).
      * Units: mm (0.001mm), degrees (0.001°).
      */
-    bool setCartesianTarget(float x_mm, float y_mm, float z_mm,
-                            float rx_deg, float ry_deg, float rz_deg) 
+    bool setCartesianTarget(T x_mm, T y_mm, T z_mm,
+                            T rx_deg, T ry_deg, T rz_deg) 
     {
         auto sendSegment = [this](canid_t id, int32_t val_high, int32_t val_low) 
         {
@@ -296,10 +301,9 @@ public:
 
     /**
      * @brief Set target joint angles (J1-J6) in degrees.
-     * Units: degrees (0.001°).
+     * Units: radian.
      */
-    bool setJointTarget(float j1_deg, float j2_deg, float j3_deg,
-                        float j4_deg, float j5_deg, float j6_deg) 
+    bool setJointPosition(std::array<T, 6> joint_pos) 
     {
         auto sendSegment = [this](canid_t id, int32_t val1, int32_t val2) 
         {
@@ -318,16 +322,51 @@ public:
             return sendCanFrame(frame);
         };
 
-        int32_t j1 = static_cast<int32_t>(j1_deg * 1000);
-        int32_t j2 = static_cast<int32_t>(j2_deg * 1000);
-        int32_t j3 = static_cast<int32_t>(j3_deg * 1000);
-        int32_t j4 = static_cast<int32_t>(j4_deg * 1000);
-        int32_t j5 = static_cast<int32_t>(j5_deg * 1000);
-        int32_t j6 = static_cast<int32_t>(j6_deg * 1000);
+        int32_t j1 = static_cast<int32_t>(joint_pos[0] * 180.0 / M_PI * 1000);
+        int32_t j2 = static_cast<int32_t>(joint_pos[1] * 180.0 / M_PI * 1000);
+        int32_t j3 = static_cast<int32_t>(joint_pos[2] * 180.0 / M_PI * 1000);
+        int32_t j4 = static_cast<int32_t>(joint_pos[3] * 180.0 / M_PI * 1000);
+        int32_t j5 = static_cast<int32_t>(joint_pos[4] * 180.0 / M_PI * 1000);
+        int32_t j6 = static_cast<int32_t>(joint_pos[5] * 180.0 / M_PI * 1000);
 
         if (!sendSegment(0x155, j1, j2)) return false;
         if (!sendSegment(0x156, j3, j4)) return false;
         if (!sendSegment(0x157, j5, j6)) return false;
+
+        return true;
+    }
+
+    bool setJointMitControl(const std::array<T, 6>& joint_pos, const std::array<T, 6>& joint_vel, const std::array<T, 6>& joint_torq)
+    {
+        auto sendSegment = [this](int id, T pos, T vel, T torq, T kp, T kd) -> bool
+        {
+            int16_t pos_enc = floating2int16(pos, -12.5, 12.5, 16);
+            int16_t vel_enc = floating2int16(vel, -45.0, 45.0, 12);
+            int16_t kp_enc = floating2int16(kp, 0.0, 500.0, 12);
+            int16_t kd_enc = floating2int16(kd, -5, 5.0, 12);
+            int8_t torq_enc = floating2int8(torq, -18.0, 18.0, 8);
+
+            struct can_frame frame;
+            uint8_t crc = 0;
+            memset(&frame, 0, sizeof(frame));
+            frame.can_id = 0x15A + id;
+            frame.can_dlc = 8;
+            frame.data[0] = (pos_enc >> 8);
+            frame.data[1] = (pos_enc & 0xFF);
+            frame.data[2] = (vel_enc >> 4);
+            frame.data[3] = (((vel_enc & 0x0F) << 4)|kp_enc >> 8);
+            frame.data[4] = (kp_enc & 0xFF);
+            frame.data[5] = (kd_enc >> 4);
+            frame.data[6] = (((kd_enc & 0x0F) << 4)|(torq_enc >> 4));
+            crc = (frame.data[0]^frame.data[1]^frame.data[2]^frame.data[3]^frame.data[4]^frame.data[5]^frame.data[6]) & 0x0F;
+            frame.data[7] = ((torq_enc << 4) | crc);
+            return sendCanFrame(frame);
+        };
+
+        for ( int i=0 ; i<6 ; i++ )
+        {
+            if ( !sendSegment(i, joint_pos(i), joint_vel(i), joint_torq(i), 10.0, 0.8) ) return false;
+        }
 
         return true;
     }
@@ -382,7 +421,7 @@ public:
      * @param clear_error Clear error.
      * @param set_zero Set current position as zero.
      */
-    bool setGripper(float travel_mm, float torque_nm = 0.5f,
+    bool setGripper(T travel_mm, T torque_nm = 0.5f,
                     bool enable = true, bool clear_error = false, bool set_zero = false) 
     {
         struct can_frame frame;
@@ -493,7 +532,6 @@ public:
                 case 0x264: case 0x265: case 0x266:
                     parseJointDriverLS(frame);
                     break;
-                    
                 default:
                     // Handle ID offset cases (0x2Bx, 0x2Cx, etc.)
                     if ((frame.can_id >= 0x2B1 && frame.can_id <= 0x2B8) || 
@@ -534,20 +572,26 @@ public:
         return static_cast<MoveMode>(state.move_mode); 
     }
     
-    float getGripperTravel() const 
+    T getGripperTravel() const 
     { 
         return gripper.travel_mm; 
     }
     
-    float getJointAngle(int idx) const 
+    T getJointAngle(int idx) const 
     {
-        if (idx < 0 || idx > 5) return 0.0f;
+        if (idx < 0 || idx > 5) return 0.0;
         return joint_angles[idx];
     }
-    
-    float getCartesianPosition(int idx) const 
+
+    T getJointFeedbackAngle(int idx) const
     {
-        if (idx < 0 || idx > 5) return 0.0f;
+        if (idx < 0 || idx > 5) return 0.0;
+        return joint_driver_hs[idx].position_rad;
+    }
+    
+    T getCartesianPosition(int idx) const 
+    {
+        if (idx < 0 || idx > 5) return 0.0;
         return cartesian_pos[idx];
     }
 
@@ -732,56 +776,56 @@ private:
     {
         int32_t x = (frame.data[0] << 24) | (frame.data[1] << 16) | (frame.data[2] << 8) | frame.data[3];
         int32_t y = (frame.data[4] << 24) | (frame.data[5] << 16) | (frame.data[6] << 8) | frame.data[7];
-        cartesian_pos[0] = x / 1000.0f;  // mm
-        cartesian_pos[1] = y / 1000.0f;
+        cartesian_pos[0] = x / 1000.0;  // mm
+        cartesian_pos[1] = y / 1000.0;
     }
 
     void parseCartesianPos2(const struct can_frame& frame) 
     {
         int32_t z = (frame.data[0] << 24) | (frame.data[1] << 16) | (frame.data[2] << 8) | frame.data[3];
         int32_t rx = (frame.data[4] << 24) | (frame.data[5] << 16) | (frame.data[6] << 8) | frame.data[7];
-        cartesian_pos[2] = z / 1000.0f;
-        cartesian_pos[3] = rx / 1000.0f;  // degrees
+        cartesian_pos[2] = z / 1000.0;
+        cartesian_pos[3] = rx / 1000.0;  // degrees
     }
 
     void parseCartesianPos3(const struct can_frame& frame) 
     {
         int32_t ry = (frame.data[0] << 24) | (frame.data[1] << 16) | (frame.data[2] << 8) | frame.data[3];
         int32_t rz = (frame.data[4] << 24) | (frame.data[5] << 16) | (frame.data[6] << 8) | frame.data[7];
-        cartesian_pos[4] = ry / 1000.0f;
-        cartesian_pos[5] = rz / 1000.0f;
+        cartesian_pos[4] = ry / 1000.0;
+        cartesian_pos[5] = rz / 1000.0;
     }
 
     void parseJointAngles12(const struct can_frame& frame) 
     {
         int32_t j1 = (frame.data[0] << 24) | (frame.data[1] << 16) | (frame.data[2] << 8) | frame.data[3];
         int32_t j2 = (frame.data[4] << 24) | (frame.data[5] << 16) | (frame.data[6] << 8) | frame.data[7];
-        joint_angles[0] = j1 / 1000.0f;
-        joint_angles[1] = j2 / 1000.0f;
+        joint_angles[0] = j1 / 1000.0;
+        joint_angles[1] = j2 / 1000.0;
     }
 
     void parseJointAngles34(const struct can_frame& frame) 
     {
         int32_t j3 = (frame.data[0] << 24) | (frame.data[1] << 16) | (frame.data[2] << 8) | frame.data[3];
         int32_t j4 = (frame.data[4] << 24) | (frame.data[5] << 16) | (frame.data[6] << 8) | frame.data[7];
-        joint_angles[2] = j3 / 1000.0f;
-        joint_angles[3] = j4 / 1000.0f;
+        joint_angles[2] = j3 / 1000.0;
+        joint_angles[3] = j4 / 1000.0;
     }
 
     void parseJointAngles56(const struct can_frame& frame) 
     {
         int32_t j5 = (frame.data[0] << 24) | (frame.data[1] << 16) | (frame.data[2] << 8) | frame.data[3];
         int32_t j6 = (frame.data[4] << 24) | (frame.data[5] << 16) | (frame.data[6] << 8) | frame.data[7];
-        joint_angles[4] = j5 / 1000.0f;
-        joint_angles[5] = j6 / 1000.0f;
+        joint_angles[4] = j5 / 1000.0;
+        joint_angles[5] = j6 / 1000.0;
     }
 
     void parseGripperFeedback(const struct can_frame& frame) 
     {
         int32_t travel = (frame.data[0] << 24) | (frame.data[1] << 16) | (frame.data[2] << 8) | frame.data[3];
         int16_t torque = (frame.data[4] << 8) | frame.data[5];
-        gripper.travel_mm = travel / 1000.0f;
-        gripper.torque_nm = torque / 1000.0f;
+        gripper.travel_mm = travel / 1000.0;
+        gripper.torque_nm = torque / 1000.0;
         gripper.status = frame.data[6];
 
         // Parse status bits
@@ -871,9 +915,9 @@ private:
         int32_t pos_raw = (frame.data[4] << 24) | (frame.data[5] << 16) | 
                          (frame.data[6] << 8) | frame.data[7];
 
-        joint_driver_hs[joint_idx].speed_rad_per_sec = speed_raw / 1000.0f;
-        joint_driver_hs[joint_idx].current_a = current_raw / 1000.0f;
-        joint_driver_hs[joint_idx].position_rad = *reinterpret_cast<float*>(&pos_raw);
+        joint_driver_hs[joint_idx].speed_rad_per_sec = speed_raw / 1000.0;
+        joint_driver_hs[joint_idx].current_a = current_raw / 1000.0;
+        joint_driver_hs[joint_idx].position_rad = static_cast<T>(pos_raw) / 1000.0;
     }
 
     void parseJointDriverLS(const struct can_frame& frame) 
@@ -888,10 +932,10 @@ private:
         uint16_t bus_current_raw = (frame.data[6] << 8) | frame.data[7];
         uint8_t status = frame.data[5];
 
-        joint_driver_ls[joint_idx].voltage_v = voltage_raw / 10.0f;
-        joint_driver_ls[joint_idx].driver_temp_c = driver_temp_raw / 1.0f;
+        joint_driver_ls[joint_idx].voltage_v = voltage_raw / 10.0;
+        joint_driver_ls[joint_idx].driver_temp_c = driver_temp_raw / 1.0;
         joint_driver_ls[joint_idx].motor_temp_c = motor_temp_raw;
-        joint_driver_ls[joint_idx].bus_current_a = bus_current_raw / 1000.0f;
+        joint_driver_ls[joint_idx].bus_current_a = bus_current_raw / 1000.0;
         joint_driver_ls[joint_idx].driver_status = status;
 
         // Parse status bits
@@ -905,4 +949,14 @@ private:
         bits.enabled = !((status >> 6) & 0x01);  // Inverted: 0=enabled, 1=disabled
         bits.stall_protection = (status >> 7) & 0x01;
     }
+
+    int16_t floating2int16(T x, T min, T max, uint8_t bits)
+    {
+        return static_cast<int16_t>((x-min)*(static_cast<T>((1<<bits)-1)/(max-min))); 
+    };
+
+    int8_t floating2int8(T x, T min, T max, uint8_t bits)
+    {
+        return static_cast<int8_t>((x-min)*(static_cast<T>((1<<bits)-1)/(max-min))); 
+    };
 };
