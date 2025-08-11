@@ -50,10 +50,14 @@ public:
         }
 
         this->running_ = true;
-        this->mujoco_engine_thread_ = std::thread([this]() {
+        this->mujoco_engine_thread_ = std::thread([this]()
+        {
             while (this->running_)
             {
-                this->update();
+                {
+                    std::lock_guard<std::mutex>(this->mutex_);
+                    mj_step(this->mujoco_model_, this->mujoco_data_);
+                }
                 // Add a small delay to prevent excessive CPU usage
                 std::this_thread::sleep_for(std::chrono::milliseconds(1));
             }
@@ -208,43 +212,53 @@ public:
         return joint_acc;
     }
 
-    Eigen::Vector<T, 3> getLeftHandMocapPosition() const
+    Eigen::Vector<T, 3> getLeftHandSitePosition() const
     {
         std::lock_guard<std::mutex>(this->mutex_);
         Eigen::Vector<T, 3> pos;
-        pos(0) = this->mujoco_data_->mocap_pos[0];
-        pos(1) = this->mujoco_data_->mocap_pos[1];
-        pos(2) = this->mujoco_data_->mocap_pos[2];
+        pos(0) = this->mujoco_data_->site_xpos[0];
+        pos(1) = this->mujoco_data_->site_xpos[1];
+        pos(2) = this->mujoco_data_->site_xpos[2];
         return pos;
     }
-    Eigen::Vector<T, 3> getRightHandMocapPosition() const
+    Eigen::Vector<T, 3> getRightHandSitePosition() const
     {
         std::lock_guard<std::mutex>(this->mutex_);
         Eigen::Vector<T, 3> pos;
-        pos(0) = this->mujoco_data_->mocap_pos[3];
-        pos(1) = this->mujoco_data_->mocap_pos[4];
-        pos(2) = this->mujoco_data_->mocap_pos[5];
+        pos(0) = this->mujoco_data_->site_xpos[3];
+        pos(1) = this->mujoco_data_->site_xpos[4];
+        pos(2) = this->mujoco_data_->site_xpos[5];
         return pos;
     }
-    Eigen::Quaternion<T> getLeftHandMocapOrientation() const
+    Eigen::Matrix<T, 3, 3> getLeftHandSiteOrientation() const
     {
         std::lock_guard<std::mutex>(this->mutex_);
-        Eigen::Quaternion<T> quat;
-        quat.w() = this->mujoco_data_->mocap_quat[0];
-        quat.x() = this->mujoco_data_->mocap_quat[1];
-        quat.y() = this->mujoco_data_->mocap_quat[2];
-        quat.z() = this->mujoco_data_->mocap_quat[3];
-        return quat;
+        Eigen::Matrix<T, 3, 3> R;
+        R(0, 0) = this->mujoco_data_->site_xmat[0];
+        R(0, 1) = this->mujoco_data_->site_xmat[1];
+        R(0, 2) = this->mujoco_data_->site_xmat[2];
+        R(1, 0) = this->mujoco_data_->site_xmat[3];
+        R(1, 1) = this->mujoco_data_->site_xmat[4];
+        R(1, 2) = this->mujoco_data_->site_xmat[5];
+        R(2, 0) = this->mujoco_data_->site_xmat[6];
+        R(2, 1) = this->mujoco_data_->site_xmat[7];
+        R(2, 2) = this->mujoco_data_->site_xmat[8];
+        return R;
     }
-    Eigen::Quaternion<T> getRightHandMocapOrientation() const
+    Eigen::Matrix<T, 3, 3> getRightHandSiteOrientation() const
     {
         std::lock_guard<std::mutex>(this->mutex_);
-        Eigen::Quaternion<T> quat;
-        quat.w() = this->mujoco_data_->mocap_quat[4];
-        quat.x() = this->mujoco_data_->mocap_quat[5];
-        quat.y() = this->mujoco_data_->mocap_quat[6];
-        quat.z() = this->mujoco_data_->mocap_quat[7];
-        return quat;
+        Eigen::Matrix<T, 3, 3> R;
+        R(0, 0) = this->mujoco_data_->site_xmat[9];
+        R(0, 1) = this->mujoco_data_->site_xmat[10];
+        R(0, 2) = this->mujoco_data_->site_xmat[11];
+        R(1, 0) = this->mujoco_data_->site_xmat[12];
+        R(1, 1) = this->mujoco_data_->site_xmat[13];
+        R(1, 2) = this->mujoco_data_->site_xmat[14];
+        R(2, 0) = this->mujoco_data_->site_xmat[15];
+        R(2, 1) = this->mujoco_data_->site_xmat[16];
+        R(2, 2) = this->mujoco_data_->site_xmat[17];
+        return R;
     }
 private:
     mutable std::mutex mutex_;
@@ -252,9 +266,4 @@ private:
     mjData* mujoco_data_;
     bool running_ = false;
     std::thread mujoco_engine_thread_;
-    void update()
-    {
-        std::lock_guard<std::mutex>(this->mutex_);
-        mj_step(this->mujoco_model_, this->mujoco_data_);
-    }
 };

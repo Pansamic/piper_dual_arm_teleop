@@ -11,8 +11,15 @@
 #pragma once
 
 #include <thread>
+#include <mutex>
+#include <atomic>
 #include <GLFW/glfw3.h>
 #include <mujoco/mujoco.h>
+#include <glfw_adapter.h>
+#include <simulate.h>
+#include <array_safety.h>
+#include <Eigen/Core>
+#include <Eigen/Geometry>
 
 class MujocoFrontend
 {
@@ -223,3 +230,56 @@ private:
         mjv_moveCamera(mujoco_model_, mjMOUSE_ZOOM, 0, -0.05*yoffset, &scn, &cam);
     }
 };
+
+
+// class MujocoFrontend
+// {
+// public:
+//     MujocoFrontend(mjModel* m, mjData* d) : mujoco_model_(m), mujoco_data_(d){};
+//     ~MujocoFrontend() = default;
+
+//     void start()
+//     {
+//         this->render_thread_ = std::thread([this]()
+//         {
+//             mjvCamera cam;
+//             mjv_defaultCamera(&cam);
+
+//             mjvOption opt;
+//             mjv_defaultOption(&opt);
+
+//             mjvPerturb pert;
+//             mjv_defaultPerturb(&pert);
+
+//             {
+//                 std::lock_guard<std::mutex> lock(this->sim_mutex_);
+//                 this->sim_ = std::make_unique<mujoco::Simulate>(
+//                     std::make_unique<mujoco::GlfwAdapter>(),
+//                     &cam, &opt, &pert, false
+//                 );
+//                 this->sim_ready_ = true;
+//             }
+
+//             this->sim_->Load(this->mujoco_model_, this->mujoco_data_, PROJECT_PATH"/assets/mujoco_model/piper_dual_arm_torque_full.xml");
+
+//             this->sim_ready_cv_.notify_one();
+
+//             this->sim_->RenderLoop();
+//         });
+//     }
+//     void stop()
+//     {
+//         this->sim_->exitrequest.store(1);
+//         this->render_thread_.join();
+//     }
+// private:
+//     std::mutex sim_mutex_;
+//     std::condition_variable sim_ready_cv_;
+//     bool sim_ready_ = false;
+
+//     mjModel* mujoco_model_; // MuJoCo model
+//     mjData* mujoco_data_; // MuJoCo data
+
+//     std::unique_ptr<mujoco::Simulate> sim_;
+//     std::thread render_thread_;
+// };
