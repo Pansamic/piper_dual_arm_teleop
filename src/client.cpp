@@ -32,6 +32,8 @@ int main(void)
     PiperInterface<double> right_arm_interface("can2");
     left_arm_interface.initCan();
     right_arm_interface.initCan();
+    left_arm_interface.enterCANControlMode();
+    right_arm_interface.enterCANControlMode();
     left_arm_interface.listen();
     right_arm_interface.listen();
     bool left_arm_enabled = left_arm_interface.enableAllMotors(20);
@@ -87,7 +89,8 @@ int main(void)
     }
 
     msg_receiver.stop();
-
+    left_arm_interface.stop();
+    right_arm_interface.stop();
     spdlog::drop_all();
     return 0;
 }
