@@ -22,110 +22,35 @@
 #include <msgs/nav_state_msg/nav_state_sender.hpp>
 
 template<ChannelMode Mode>
-class Messenger
+class ClientMessenger
 {
 public:
-    Messenger() = delete;
+    ClientMessenger() = delete;
 
-    explicit Messenger(std::string local_endpoint, std::string remote_endpoint) : 
-        channel_(this->io_context_, local_endpoint, remote_endpoint){}
+    explicit ClientMessenger(std::string local_endpoint, std::string remote_endpoint) : 
+        channel_(this->io_context_, local_endpoint, remote_endpoint),
+        send_mq_{RingBuffer<nav_state_msg>{32}},
+        recv_mq_{RingBuffer<whole_body_msg>{32}}{}
 
-    explicit Messenger(std::string local_ipv4_addr, int local_port, std::string remote_ipv4_addr, int remote_port) : 
-        channel_(this->io_context_, local_ipv4_addr, local_port, remote_ipv4_addr, remote_port){}
+    explicit ClientMessenger(std::string local_ipv4_addr, int local_port, std::string remote_ipv4_addr, int remote_port) : 
+        channel_(this->io_context_, local_ipv4_addr, local_port, remote_ipv4_addr, remote_port),
+        send_mq_{RingBuffer<nav_state_msg>{32}},
+        recv_mq_{RingBuffer<whole_body_msg>{32}}{}
 
-    ~Messenger() = default;
+    ~ClientMessenger() = default;
 
-    void start(bool enable_sender, bool enable_receiver)
+    void start()
     {
-        this->sender_enabled = enable_sender;
-        this->receiver_enabled = enable_receiver;
-
-        if ( enable_sender )
-        {
-            this->channel_.bind_message_queue("sender", ParserType::Sender, this->send_mq_);
-            this->channel_.enable_sender();
-        }
-
-        if ( enable_receiver )
-        {
-            this->channel_.bind_message_queue("receiver", ParserType::Receiver, this->recv_mq_);
-            this->channel_.enable_receiver();
-        }
-
+        this->channel_.bind_message_queue("nav_state_sender", ParserType::Sender, this->send_mq_);
+        this->channel_.enable_sender();
+        this->channel_.bind_message_queue("whole_body_receiver", ParserType::Receiver, this->recv_mq_);
+        this->channel_.enable_receiver();
         this->io_context_thread_ = std::thread([&]() { this->io_context_.run(); });
     }
     void stop()
     {
         this->io_context_.stop();
         this->io_context_thread_.join();
-    }
-    /**
-     * @brief Send `whole_body_msg` to client.
-     * 
-     * @tparam T float precision type, e.g. `float`, `double`. 
-     * @param enable Enable arm movement.
-     * @param left_arm_joint_pos
-     * @param right_arm_joint_pos 
-     * @return true 
-     * @return false 
-     */
-    template <typename T>
-    bool sendDualArmJointPosition(bool enable, const std::array<T, 6>& left_arm_joint_pos, const std::array<T, 6>& right_arm_joint_pos)
-    {
-        if ( !this->sender_enabled )
-        {
-            return false;
-        }
-        whole_body_msg msg;
-        msg.mask = 0;
-        if ( enable )
-        {
-            msg.mask = (1<<15) | (1<<13) | (1<<12);
-        }
-        for ( std::size_t i=0 ; i<6 ; i++ )
-        {
-            msg.left_arm_joint_pos[i] = static_cast<float>(left_arm_joint_pos[i]);
-            msg.right_arm_joint_pos[i] = static_cast<float>(right_arm_joint_pos[i]);
-        }
-        this->send_mq_.enqueue(msg);
-        return true;
-    }
-
-    template <typename T>
-    bool sendDualArmHandPose(bool enable,
-        const std::array<T, 3>& left_hand_position, const std::array<T, 4>& left_hand_orientation,
-        const std::array<T, 3>& right_hand_position, const std::array<T, 4>& right_hand_orientation)
-    {
-        if ( !this->sender_enabled )
-        {
-            return false;
-        }
-        whole_body_msg msg;
-        msg.mask = 0;
-        if ( enable )
-        {
-            msg.mask = (1<<15) | (1<<13) | (1<<12);
-        }
-        msg.left_hand_pos[0] = static_cast<float>(left_hand_position[0]);
-        msg.left_hand_pos[1] = static_cast<float>(left_hand_position[1]);
-        msg.left_hand_pos[2] = static_cast<float>(left_hand_position[2]);
-
-        msg.left_hand_quat[0] = static_cast<float>(left_hand_orientation[0]);
-        msg.left_hand_quat[1] = static_cast<float>(left_hand_orientation[1]);
-        msg.left_hand_quat[2] = static_cast<float>(left_hand_orientation[2]);
-        msg.left_hand_quat[3] = static_cast<float>(left_hand_orientation[3]);
-
-        msg.right_hand_pos[0] = static_cast<float>(right_hand_position[0]);
-        msg.right_hand_pos[1] = static_cast<float>(right_hand_position[1]);
-        msg.right_hand_pos[2] = static_cast<float>(right_hand_position[2]);
-
-        msg.right_hand_quat[0] = static_cast<float>(right_hand_orientation[0]);
-        msg.right_hand_quat[1] = static_cast<float>(right_hand_orientation[1]);
-        msg.right_hand_quat[2] = static_cast<float>(right_hand_orientation[2]);
-        msg.right_hand_quat[3] = static_cast<float>(right_hand_orientation[3]);
-
-        this->send_mq_.enqueue(msg);
-        return true;
     }
 
     template <typename T>
@@ -135,10 +60,6 @@ public:
         const Eigen::Vector<T, 3>& right_gripper1_pos, const Eigen::Quaternion<T>& right_gripper1_ori,
         const Eigen::Vector<T, 3>& right_gripper2_pos, const Eigen::Quaternion<T>& right_gripper2_ori)
     {
-        if ( !this->sender_enabled )
-        {
-            return false;
-        }
         nav_state_msg msg;
 
         msg.left_grip_one_pos[0] = static_cast<float>(left_gripper1_pos(0));
@@ -184,10 +105,6 @@ public:
     template <typename T>
     bool recvDualArmJointPosition(bool& enable, std::array<T, 6>& left_arm_joint_pos, std::array<T, 6>& right_arm_joint_pos)
     {
-        if ( !this->receiver_enabled )
-        {
-            return false;
-        }
         if ( this->recv_mq_.empty() )
         {
             return false;
@@ -224,10 +141,6 @@ public:
         std::array<T, 3>& right_hand_position, std::array<T, 4>& right_hand_orientation,
         T& left_gripper, T& right_gripper)
     {
-        if ( !this->receiver_enabled )
-        {
-            return false;
-        }
         if ( this->recv_mq_.empty() )
         {
             return false;
@@ -260,16 +173,110 @@ public:
         }
         return true;
     }
-
 private:
 
     asio::io_context io_context_;
     std::thread io_context_thread_;
     CommChannel<Mode, NavStateSender, WholeBodyReceiver> channel_;
-
-    bool sender_enabled = false;
-    bool receiver_enabled = false;
-    
     MsgQueue send_mq_{RingBuffer<nav_state_msg>{32}};
     MsgQueue recv_mq_{RingBuffer<whole_body_msg>{32}};
+};
+
+template<ChannelMode Mode>
+class ServerMessenger
+{
+public:
+    ServerMessenger() = delete;
+
+    explicit ServerMessenger(std::string local_endpoint, std::string remote_endpoint) : 
+        channel_(this->io_context_, local_endpoint, remote_endpoint),
+        send_mq_{RingBuffer<nav_state_msg>{32}},
+        recv_mq_{RingBuffer<whole_body_msg>{32}}{}
+
+    explicit ServerMessenger(std::string local_ipv4_addr, int local_port, std::string remote_ipv4_addr, int remote_port) : 
+        channel_(this->io_context_, local_ipv4_addr, local_port, remote_ipv4_addr, remote_port),
+        send_mq_{RingBuffer<nav_state_msg>{32}},
+        recv_mq_{RingBuffer<whole_body_msg>{32}}{}
+
+    ~ServerMessenger() = default;
+
+    void start()
+    {
+        this->channel_.bind_message_queue("whole_body_sender", ParserType::Sender, this->send_mq_);
+        this->channel_.enable_sender();
+        this->channel_.bind_message_queue("nav_state_receiver", ParserType::Receiver, this->recv_mq_);
+        this->channel_.enable_receiver();
+        this->io_context_thread_ = std::thread([&]() { this->io_context_.run(); });
+    }
+    void stop()
+    {
+        this->io_context_.stop();
+        this->io_context_thread_.join();
+    }
+    /**
+     * @brief Send `whole_body_msg` to client.
+     * 
+     * @tparam T float precision type, e.g. `float`, `double`. 
+     * @param enable Enable arm movement.
+     * @param left_arm_joint_pos
+     * @param right_arm_joint_pos 
+     * @return true 
+     * @return false 
+     */
+    template <typename T>
+    bool sendDualArmJointPosition(bool enable, const std::array<T, 6>& left_arm_joint_pos, const std::array<T, 6>& right_arm_joint_pos)
+    {
+        whole_body_msg msg;
+        msg.mask = 0;
+        if ( enable )
+        {
+            msg.mask = (1<<15) | (1<<13) | (1<<12);
+        }
+        for ( std::size_t i=0 ; i<6 ; i++ )
+        {
+            msg.left_arm_joint_pos[i] = static_cast<float>(left_arm_joint_pos[i]);
+            msg.right_arm_joint_pos[i] = static_cast<float>(right_arm_joint_pos[i]);
+        }
+        this->send_mq_.enqueue(msg);
+        return true;
+    }
+
+    template <typename T>
+    bool sendDualArmHandPose(bool enable,
+        const std::array<T, 3>& left_hand_position, const std::array<T, 4>& left_hand_orientation,
+        const std::array<T, 3>& right_hand_position, const std::array<T, 4>& right_hand_orientation)
+    {
+        whole_body_msg msg;
+        msg.mask = 0;
+        if ( enable )
+        {
+            msg.mask = (1<<15) | (1<<13) | (1<<12);
+        }
+        msg.left_hand_pos[0] = static_cast<float>(left_hand_position[0]);
+        msg.left_hand_pos[1] = static_cast<float>(left_hand_position[1]);
+        msg.left_hand_pos[2] = static_cast<float>(left_hand_position[2]);
+
+        msg.left_hand_quat[0] = static_cast<float>(left_hand_orientation[0]);
+        msg.left_hand_quat[1] = static_cast<float>(left_hand_orientation[1]);
+        msg.left_hand_quat[2] = static_cast<float>(left_hand_orientation[2]);
+        msg.left_hand_quat[3] = static_cast<float>(left_hand_orientation[3]);
+
+        msg.right_hand_pos[0] = static_cast<float>(right_hand_position[0]);
+        msg.right_hand_pos[1] = static_cast<float>(right_hand_position[1]);
+        msg.right_hand_pos[2] = static_cast<float>(right_hand_position[2]);
+
+        msg.right_hand_quat[0] = static_cast<float>(right_hand_orientation[0]);
+        msg.right_hand_quat[1] = static_cast<float>(right_hand_orientation[1]);
+        msg.right_hand_quat[2] = static_cast<float>(right_hand_orientation[2]);
+        msg.right_hand_quat[3] = static_cast<float>(right_hand_orientation[3]);
+
+        this->send_mq_.enqueue(msg);
+        return true;
+    }
+private:
+    asio::io_context io_context_;
+    std::thread io_context_thread_;
+    CommChannel<Mode, WholeBodySender, NavStateReceiver> channel_;
+    MsgQueue send_mq_;
+    MsgQueue recv_mq_;
 };

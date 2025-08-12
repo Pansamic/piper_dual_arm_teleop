@@ -43,7 +43,7 @@ public:
     bool initialize()
     {
         interface.start(PROJECT_PATH"/assets/mujoco_model/piper_dual_arm_torque.xml");
-        messenger.start(true, true);
+        messenger.start();
         return true;
     }
     void stop()
@@ -90,7 +90,7 @@ private:
     ArmController<double, NumLink, NumDof> controller;
     BsplineTrajectoryBuffer<double, NumDof> left_arm_trajectory_buffer;
     BsplineTrajectoryBuffer<double, NumDof> right_arm_trajectory_buffer;
-    Messenger<ChannelMode::UDP> messenger;
+    ServerMessenger<ChannelMode::UDP> messenger;
 
     std::tuple<Eigen::Vector3d, Eigen::Quaterniond> updateArmPlan(const PiperArmModel<double>& model, BsplineTrajectoryBuffer<double, NumDof>& trajbuffer)
     {
