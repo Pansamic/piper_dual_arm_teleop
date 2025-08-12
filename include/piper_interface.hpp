@@ -595,7 +595,7 @@ public:
      */
     bool setJointZero(uint8_t idx) 
     {
-        if (idx < 0 || idx > 5) return false;
+        if (idx > 5) return false;
         struct can_frame frame;
         frame.can_id = 0x475;
         frame.can_dlc = 8;
@@ -631,7 +631,7 @@ public:
         return sendCanFrame(frame);
     }
 
-    bool clearJointErrorCode(int idx)
+    bool clearJointErrorCode(std::size_t idx)
     {
         struct can_frame frame;
         frame.can_id = 0x475;
@@ -742,79 +742,79 @@ public:
         return gripper.travel_mm; 
     }
     
-    T getJointAngle(int idx) const 
+    T getJointAngle(std::size_t idx) const 
     {
-        if (idx < 0 || idx > 5) return 0.0;
+        if (idx > 5) return 0.0;
         return joint_angles[idx];
     }
 
-    T getJointFeedbackAngle(int idx) const
+    T getJointFeedbackAngle(std::size_t idx) const
     {
-        if (idx < 0 || idx > 5) return 0.0;
+        if (idx > 5) return 0.0;
         return joint_driver_hs[idx].position_rad;
     }
     
-    T getCartesianPosition(int idx) const 
+    T getCartesianPosition(std::size_t idx) const 
     {
-        if (idx < 0 || idx > 5) return 0.0;
+        if (idx > 5) return 0.0;
         return cartesian_pos[idx];
     }
 
     // Fault bit accessors
-    bool isJointCommError(int idx) const 
+    bool isJointCommError(std::size_t idx) const 
     {
-        if (idx < 0 || idx > 5) return false;
+        if (idx > 5) return false;
         return state.fault_bits.joint_comm_error[idx];
     }
     
-    bool isJointAngleLimitExceeded(int idx) const 
+    bool isJointAngleLimitExceeded(std::size_t idx) const 
     {
-        if (idx < 0 || idx > 5) return false;
+        if (idx > 5) return false;
         return state.fault_bits.joint_angle_limit_exceeded[idx];
     }
 
-    bool isJointVoltageLow(int idx) const
+    bool isJointVoltageLow(std::size_t idx) const
     {
-        if (idx < 0 || idx > 5) return false;
+        if (idx > 5) return false;
         return joint_driver_ls[idx].bits.voltage_low;
     }
 
-    bool isJointOverTemp(int idx) const
+    bool isJointOverTemp(std::size_t idx) const
     {
-        if (idx < 0 || idx > 5) return false;
+        if (idx > 5) return false;
         return joint_driver_ls[idx].bits.motor_over_temp;
     }
 
-    bool isJointDriverOverCurrent(int idx) const
+    bool isJointDriverOverCurrent(std::size_t idx) const
     {
-        if (idx < 0 || idx > 5) return false;
+        if (idx > 5) return false;
         return joint_driver_ls[idx].bits.driver_over_current;
     }
 
-    bool isJointDriverOverTemp(int idx) const
+    bool isJointDriverOverTemp(std::size_t idx) const
     {
-        if (idx < 0 || idx > 5) return false;
+        if (idx > 5) return false;
         return joint_driver_ls[idx].bits.driver_over_temp;
     }
 
-    bool isJointInCollisionProtection(int idx) const
+    bool isJointInCollisionProtection(std::size_t idx) const
     {
-        if (idx < 0 || idx > 5) return false;
+        if (idx > 5) return false;
         return joint_driver_ls[idx].bits.collision_protection;
     }
 
-    bool isJointDriverError(int idx) const
+    bool isJointDriverError(std::size_t idx) const
     {
-        if (idx < 0 || idx > 5) return false;
+        if (idx > 5) return false;
         return joint_driver_ls[idx].bits.driver_error;
     }
 
-    bool isJointEnabled(int idx) const
+    bool isJointEnabled(std::size_t idx) const
     {
         return joint_driver_ls[idx].bits.enabled;
     }
 
-    bool isJointInStallProtection(int idx) const
+    bool isJointInStallProtection(std::size_t idx) const
     {
         return joint_driver_ls[idx].bits.stall_protection;
     }
