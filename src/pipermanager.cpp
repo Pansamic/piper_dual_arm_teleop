@@ -14,14 +14,30 @@
 
 int main(int argc, char* argv[])
 {
-    // argparse::ArgumentParser program("pipermanager");
+    argparse::ArgumentParser program("pipermanager");
 
-    // program.add_argument("--control");
+    program.add_argument("--enable").flag();
+    program.add_argument("--disable").flag();
+    try {
+        program.parse_args(argc, argv);
+    } catch (const std::exception &err) {
+        std::cerr << err.what() << std::endl;
+        std::cerr << program;
+        return 1;
+    }
+
     PiperInterface<double> interface("can1");
     interface.initCan();
     interface.listen();
 
-    interface.enableAllMotors();
+    if ( program.get<bool>("--enable") )
+    {
+        interface.enableAllMotors();
+    }
+    else if ( program.get<bool>("--disable") )
+    {
+        interface.disableAllMotors();
+    }
 
     interface.stop();
 
