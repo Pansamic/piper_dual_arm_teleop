@@ -67,7 +67,7 @@ public:
         const std::array<double, 3>& right_hand_position, const std::array<double, 4>& right_hand_orientation)
     {
         /* Rotation offset for Meta Quest VR controller pose */
-        static const Eigen::Quaterniond offset(Eigen::AngleAxisd(M_PI * 3 / 4, Eigen::Vector3d::UnitY()));
+        static const Eigen::Quaterniond offset(Eigen::AngleAxisd(M_PI, Eigen::Vector3d::UnitY()));
 
         Eigen::Matrix4d left_hand_pose = Eigen::Matrix4d::Identity();
         Eigen::Quaterniond left_hand_orientation_quat(left_hand_orientation[3], left_hand_orientation[0], left_hand_orientation[1], left_hand_orientation[2]);
