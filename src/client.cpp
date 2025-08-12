@@ -152,8 +152,8 @@ int main(void)
     TerminationHandler::stop_requested = false;
     /* Register SIGINT handler. */
     TerminationHandler::setup();
-    
-    Messenger<ChannelMode::UDP> messenger(CONFIG_SERVER_IPV4_ADDRESS, CONFIG_SERVER_PORT, CONFIG_CLIENT_IPV4_ADDRESS, CONFIG_CLIENT_PORT);
+
+    Messenger<ChannelMode::UDP> messenger(CONFIG_CLIENT_IPV4_ADDRESS, CONFIG_CLIENT_PORT, CONFIG_SERVER_IPV4_ADDRESS, CONFIG_SERVER_PORT);
     messenger.start(true, true);
 
     DualArmTeleopClient client;
