@@ -97,6 +97,30 @@ public:
         left_arm_interface.setGripper(70.0 - 70.0 * left_gripper);
         right_arm_interface.setGripper(70.0 - 70.0 * right_gripper);
     }
+    void getGripperPose(
+        Eigen::Vector3d& left_gripper1_pos, Eigen::Quaterniond& left_gripper1_ori,
+        Eigen::Vector3d& left_gripper2_pos, Eigen::Quaterniond& left_gripper2_ori,
+        Eigen::Vector3d& right_gripper1_pos, Eigen::Quaterniond& right_gripper1_ori,
+        Eigen::Vector3d& right_gripper2_pos, Eigen::Quaterniond& right_gripper2_ori)
+    {
+        Eigen::Vector<double, 6> joint_pos(
+            left_arm_interface.getJointAngle(0), left_arm_interface.getJointAngle(1), left_arm_interface.getJointAngle(2),
+            left_arm_interface.getJointAngle(3), left_arm_interface.getJointAngle(4), left_arm_interface.getJointAngle(5));
+        double left_gripper_travel = left_arm_interface.getGripperTravel();
+        auto [left_gripper1_transform, left_gripper2_transform] = left_arm_model.getGripperTransform(joint_pos, left_gripper_travel / 1000.0 / 2, left_gripper_travel / 1000.0 / 2);
+        double right_gripper_travel = right_arm_interface.getGripperTravel();
+        auto [right_gripper1_transform, right_gripper2_transform] = right_arm_model.getGripperTransform(joint_pos, right_gripper_travel / 1000.0 / 2, right_gripper_travel / 1000.0 / 2);
+        
+        left_gripper1_pos = left_gripper1_transform.block<3, 1>(0, 3);
+        left_gripper2_pos = left_gripper2_transform.block<3, 1>(0, 3);
+        right_gripper1_pos = right_gripper1_transform.block<3, 1>(0, 3);
+        right_gripper2_pos = right_gripper2_transform.block<3, 1>(0, 3);
+
+        left_gripper1_ori = Eigen::Quaterniond(left_gripper1_transform.block<3, 3>(0, 0));
+        left_gripper2_ori = Eigen::Quaterniond(left_gripper2_transform.block<3, 3>(0, 0));
+        right_gripper1_ori = Eigen::Quaterniond(right_gripper1_transform.block<3, 3>(0, 0));
+        right_gripper2_ori = Eigen::Quaterniond(right_gripper2_transform.block<3, 3>(0, 0));
+    }
 private:
     PiperInterface<double> left_arm_interface;
     PiperInterface<double> right_arm_interface;
@@ -143,7 +167,7 @@ private:
             current_joint_state.joint_pos(i) = interface.getJointFeedbackAngle(i);
             current_joint_state.joint_vel(i) = interface.getJointFeedbackVelocity(i);
         }
-        // auto target_joint_torque = controller.computeTorqueControlOutput(model, Eigen::Vector<double, 3>::Zero(), target_joint_state, current_joint_state);
+        // auto target_joint_torque = controller.computeTorqueControlOutput(model, Eigen::Vector3d::Zero(), target_joint_state, current_joint_state);
         auto torque_compensate = controller.computeGravityCompensate(model, current_joint_state);
         // interface.setControlMode(PiperInterface<double>::MoveMode::MOVE_J);
         // interface.setJointPosition(target_joint_pos);
@@ -211,6 +235,14 @@ int main(void)
             LOG_DEBUG("right hand position:x={:.4f},y={:.4f},z={:.4}", right_hand_position[0], right_hand_position[1], right_hand_position[2]);
             LOG_DEBUG("right hand orientation:x={:.4f},y={:.4f},z={:.4},w={:.4}", right_hand_orientation[0], right_hand_orientation[1], right_hand_orientation[2], right_hand_orientation[3]);
         }
+        Eigen::Vector3d left_gripper1_pos, left_gripper2_pos, right_gripper1_pos, right_gripper2_pos;
+        Eigen::Quaterniond left_gripper1_ori, left_gripper2_ori, right_gripper1_ori, right_gripper2_ori;
+        client.getGripperPose(
+            left_gripper1_pos, left_gripper1_ori, left_gripper2_pos, left_gripper2_ori,
+            right_gripper1_pos, right_gripper1_ori, right_gripper2_pos, right_gripper2_ori);
+        messenger.sendFourGrippersPose(
+            left_gripper1_pos, left_gripper1_ori, left_gripper2_pos, left_gripper2_ori,
+            right_gripper1_pos, right_gripper1_ori, right_gripper2_pos, right_gripper2_ori);
         client.updatePlan(left_hand_position, left_hand_orientation, right_hand_position, right_hand_orientation);
     }
 

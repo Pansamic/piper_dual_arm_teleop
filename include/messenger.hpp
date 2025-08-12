@@ -10,6 +10,7 @@
  */
 #pragma once
 
+#include <Eigen/Core>
 #include <asio.hpp>
 #include <itc/backend/RingBuf.hpp>
 #include <comm_channel.hpp>
@@ -41,13 +42,13 @@ public:
 
         if ( enable_sender )
         {
-            this->channel_.bind_message_queue("whole_body_sender", ParserType::Sender, this->send_mq_);
+            this->channel_.bind_message_queue("sender", ParserType::Sender, this->send_mq_);
             this->channel_.enable_sender();
         }
 
         if ( enable_receiver )
         {
-            this->channel_.bind_message_queue("whole_body_receiver", ParserType::Receiver, this->recv_mq_);
+            this->channel_.bind_message_queue("receiver", ParserType::Receiver, this->recv_mq_);
             this->channel_.enable_receiver();
         }
 
@@ -122,6 +123,59 @@ public:
         msg.right_hand_quat[1] = static_cast<float>(right_hand_orientation[1]);
         msg.right_hand_quat[2] = static_cast<float>(right_hand_orientation[2]);
         msg.right_hand_quat[3] = static_cast<float>(right_hand_orientation[3]);
+
+        this->send_mq_.enqueue(msg);
+        return true;
+    }
+
+    template <typename T>
+    bool sendFourGrippersPose(
+        const Eigen::Vector<T, 3>& left_gripper1_pos, const Eigen::Quaternion<T>& left_gripper1_ori,
+        const Eigen::Vector<T, 3>& left_gripper2_pos, const Eigen::Quaternion<T>& left_gripper2_ori,
+        const Eigen::Vector<T, 3>& right_gripper1_pos, const Eigen::Quaternion<T>& right_gripper1_ori,
+        const Eigen::Vector<T, 3>& right_gripper2_pos, const Eigen::Quaternion<T>& right_gripper2_ori)
+    {
+        if ( !this->sender_enabled )
+        {
+            return false;
+        }
+        nav_state_msg msg;
+
+        msg.left_grip_one_pos[0] = static_cast<float>(left_gripper1_pos(0));
+        msg.left_grip_one_pos[1] = static_cast<float>(left_gripper1_pos(1));
+        msg.left_grip_one_pos[2] = static_cast<float>(left_gripper1_pos(2));
+
+        msg.left_grip_two_pos[0] = static_cast<float>(left_gripper2_pos(0));
+        msg.left_grip_two_pos[1] = static_cast<float>(left_gripper2_pos(1));
+        msg.left_grip_two_pos[2] = static_cast<float>(left_gripper2_pos(2));
+
+        msg.right_grip_one_pos[0] = static_cast<float>(right_gripper1_pos(0));
+        msg.right_grip_one_pos[1] = static_cast<float>(right_gripper1_pos(1));
+        msg.right_grip_one_pos[2] = static_cast<float>(right_gripper1_pos(2));
+
+        msg.right_grip_one_pos[0] = static_cast<float>(right_gripper2_pos(0));
+        msg.right_grip_one_pos[1] = static_cast<float>(right_gripper2_pos(1));
+        msg.right_grip_one_pos[2] = static_cast<float>(right_gripper2_pos(2));
+
+        msg.left_grip_one_quat[0] = static_cast<float>(left_gripper1_ori.x());
+        msg.left_grip_one_quat[1] = static_cast<float>(left_gripper1_ori.y());
+        msg.left_grip_one_quat[2] = static_cast<float>(left_gripper1_ori.z());
+        msg.left_grip_one_quat[3] = static_cast<float>(left_gripper1_ori.w());
+
+        msg.left_grip_two_quat[0] = static_cast<float>(left_gripper2_ori.x());
+        msg.left_grip_two_quat[1] = static_cast<float>(left_gripper2_ori.y());
+        msg.left_grip_two_quat[2] = static_cast<float>(left_gripper2_ori.z());
+        msg.left_grip_two_quat[3] = static_cast<float>(left_gripper2_ori.w());
+
+        msg.right_grip_one_quat[0] = static_cast<float>(right_gripper1_ori.x());
+        msg.right_grip_one_quat[1] = static_cast<float>(right_gripper1_ori.y());
+        msg.right_grip_one_quat[2] = static_cast<float>(right_gripper1_ori.z());
+        msg.right_grip_one_quat[3] = static_cast<float>(right_gripper1_ori.w());
+
+        msg.right_grip_two_quat[0] = static_cast<float>(right_gripper2_ori.x());
+        msg.right_grip_two_quat[1] = static_cast<float>(right_gripper2_ori.y());
+        msg.right_grip_two_quat[2] = static_cast<float>(right_gripper2_ori.z());
+        msg.right_grip_two_quat[3] = static_cast<float>(right_gripper2_ori.w());
 
         this->send_mq_.enqueue(msg);
         return true;
@@ -211,11 +265,11 @@ private:
 
     asio::io_context io_context_;
     std::thread io_context_thread_;
-    CommChannel<Mode, WholeBodySender, WholeBodyReceiver> channel_;
+    CommChannel<Mode, NavStateSender, WholeBodyReceiver> channel_;
 
     bool sender_enabled = false;
     bool receiver_enabled = false;
     
-    MsgQueue send_mq_{RingBuffer<whole_body_msg>{32}};
+    MsgQueue send_mq_{RingBuffer<nav_state_msg>{32}};
     MsgQueue recv_mq_{RingBuffer<whole_body_msg>{32}};
 };

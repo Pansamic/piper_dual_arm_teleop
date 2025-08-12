@@ -160,6 +160,35 @@ public:
         return std::make_tuple(link_transform, com_transform);
     }
 
+    std::tuple<Eigen::Matrix<T, 4, 4>, Eigen::Matrix<T, 4, 4>>
+    getGripperTransform(const Eigen::Vector<T, NumDof>& joint_pos, T link7_pos, T link8_pos)
+    {
+        static const Eigen::Matrix<T, 4, 4> link7_default_transform = getTransformFromRotationAndTranslation<T>(0, 0, 0.1358, M_PI_2, 0, 0);
+        static const Eigen::Matrix<T, 4, 4> link8_default_transform = getTransformFromRotationAndTranslation<T>(0, 0, 0.1358, M_PI_2, 0, -M_PI);
+        // static const Eigen::Vector<T, 3> link7_pos(0, 0, 0.1358);
+        // static const Eigen::Quaternion<T> link7_ori(Eigen::AngleAxisd(M_PI / 2, Eigen::Vector3d::UnitX()));
+        static const Eigen::Vector<T, 3> link7_axis(0, 0, 1);
+        // static const Eigen::Vector<T, 3> link8_pos(0, 0, 0.1358);
+        // static const Eigen::Quaternion<T> link8_ori(0, 0, -0.707108, -0.707105);
+        static const Eigen::Vector<T, 3> link8_axis(0, 0, -1);
+        auto [link_transform, link_com_transform] = getTransform(joint_pos);
+
+        Eigen::Matrix<T, 4, 4> joint_rotate_transform = Eigen::Matrix<T, 4, 4>::Identity();
+        Eigen::Matrix<T, 4, 4> link_transform_local = Eigen::Matrix<T, 4, 4>::Identity();
+
+        joint_rotate_transform.setIdentity();
+        joint_rotate_transform.template block<3, 1>(0, 3) = link7_pos * link7_axis;
+        link_transform_local = link7_default_transform * joint_rotate_transform;
+        Eigen::Matrix<T, 4, 4> link7_transform = link_transform[6] * link_transform_local;
+
+        joint_rotate_transform.setIdentity();
+        joint_rotate_transform.template block<3, 1>(0, 3) = link8_pos * link8_axis;
+        link_transform_local = link8_default_transform * joint_rotate_transform;
+        Eigen::Matrix<T, 4, 4> link8_transform = link_transform[6] * link_transform_local;
+
+        return std::make_tuple(link7_transform, link8_transform);
+    }
+
     /**
      * @brief Calculate the velocity of each link and center of mass.
      * 
