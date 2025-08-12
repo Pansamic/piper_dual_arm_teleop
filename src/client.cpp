@@ -71,7 +71,7 @@ int main(void)
 
         bool enable = false;
         std::array<double, 6> left_arm_target_joint_pos, right_arm_target_joint_pos;
-        if ( msg_receiver.recv(enable, left_arm_target_joint_pos, right_arm_target_joint_pos) )
+        if ( msg_receiver.recvDualArmJointPosition(enable, left_arm_target_joint_pos, right_arm_target_joint_pos) )
         {
             if ( !enable )
             {

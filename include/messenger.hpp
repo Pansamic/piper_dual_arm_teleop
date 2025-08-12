@@ -69,7 +69,7 @@ public:
      * @return false 
      */
     template <typename T>
-    bool send(bool enable, const std::array<T, 6>& left_arm_joint_pos, const std::array<T, 6>& right_arm_joint_pos)
+    bool sendDualArmJointPosition(bool enable, const std::array<T, 6>& left_arm_joint_pos, const std::array<T, 6>& right_arm_joint_pos)
     {
         if ( !this->sender_enabled )
         {
@@ -81,13 +81,11 @@ public:
         {
             msg.mask = (1<<15) | (1<<13) | (1<<12);
         }
-        // Convert double to float for left arm
         std::array<float, 6> left_arm_joint_pos_float;
         std::transform(left_arm_joint_pos.begin(), left_arm_joint_pos.end(), left_arm_joint_pos_float.begin(),
                        [](const T& val) { return static_cast<float>(val); });
         msg.left_arm_joint_pos = left_arm_joint_pos_float;
         
-        // Convert double to float for right arm
         std::array<float, 6> right_arm_joint_pos_float;
         std::transform(right_arm_joint_pos.begin(), right_arm_joint_pos.end(), right_arm_joint_pos_float.begin(),
                        [](const T& val) { return static_cast<float>(val); });
@@ -98,7 +96,7 @@ public:
     }
 
     template <typename T>
-    bool recv(bool& enable, std::array<T, 6>& left_arm_joint_pos, std::array<T, 6>& right_arm_joint_pos)
+    bool recvDualArmJointPosition(bool& enable, std::array<T, 6>& left_arm_joint_pos, std::array<T, 6>& right_arm_joint_pos)
     {
         if ( !this->receiver_enabled )
         {
@@ -113,18 +111,65 @@ public:
         enable = (msg.mask & (1<<15)) && (msg.mask & (1<<13)) && (msg.mask & (1<<12));
         if ( enable )
         {
-            // Convert float to double (or other type T) for left arm
             std::array<float, 6> temp_left_arm_joint_pos = msg.left_arm_joint_pos;
             std::transform(temp_left_arm_joint_pos.begin(), temp_left_arm_joint_pos.end(), left_arm_joint_pos.begin(),
                            [](const float& val) { return static_cast<T>(val); });
             
-            // Convert float to double (or other type T) for right arm
             std::array<float, 6> temp_right_arm_joint_pos = msg.right_arm_joint_pos;
             std::transform(temp_right_arm_joint_pos.begin(), temp_right_arm_joint_pos.end(), right_arm_joint_pos.begin(),
                            [](const float& val) { return static_cast<T>(val); });
         }
         return true;
     }
+    /**
+     * @brief 
+     * 
+     * @tparam T floating-point type, double or float.
+     * @param enable bool type flag to indicate whether the dual arm are enabled.
+     * @param left_hand_position 
+     * @param left_hand_orientation 
+     * @param right_hand_position 
+     * @param right_hand_orientation 
+     * @return true 
+     * @return false 
+     */
+    template <typename T>
+    bool recvDualArmHandPose(bool& enable,
+        std::array<T, 3>& left_hand_position, std::array<T, 4>& left_hand_orientation,
+        std::array<T, 3>& right_hand_position, std::array<T, 4>& right_hand_orientation)
+    {
+        if ( !this->receiver_enabled )
+        {
+            return false;
+        }
+        if ( this->recv_mq_.empty() )
+        {
+            return false;
+        }
+        whole_body_msg msg;
+        this->recv_mq_.dequeue(msg);
+        enable = (msg.mask & (1<<15)) && (msg.mask & (1<<13)) && (msg.mask & (1<<12));
+        if ( enable )
+        {
+            std::array<float, 3> temp_left_hand_pos = msg.left_hand_pos;
+            std::transform(temp_left_hand_pos.begin(), temp_left_hand_pos.end(), left_hand_position.begin(),
+                           [](const float& val) { return static_cast<T>(val); });
+
+            std::array<float, 4> temp_left_hand_quat = msg.left_hand_quat;
+            std::transform(temp_left_hand_quat.begin(), temp_left_hand_quat.end(), left_hand_orientation.begin(),
+                           [](const float& val) { return static_cast<T>(val); });
+
+            std::array<float, 3> temp_right_hand_pos = msg.right_hand_pos;
+            std::transform(temp_right_hand_pos.begin(), temp_right_hand_pos.end(), right_hand_position.begin(),
+                           [](const float& val) { return static_cast<T>(val); });
+
+            std::array<float, 4> temp_right_hand_quat = msg.right_hand_quat;
+            std::transform(temp_right_hand_quat.begin(), temp_right_hand_quat.end(), right_hand_orientation.begin(),
+                           [](const float& val) { return static_cast<T>(val); });
+        }
+        return true;
+    }
+
 private:
 
     asio::io_context io_context_;

@@ -157,7 +157,7 @@ int main(void)
                 current_joint_state.joint_vel(0), current_joint_state.joint_vel(1), current_joint_state.joint_vel(2),
                 current_joint_state.joint_vel(3), current_joint_state.joint_vel(4), current_joint_state.joint_vel(5));            
         }
-        msg_sender.send<double>(true, left_arm_target_joint_pos, right_arm_target_joint_pos);
+        msg_sender.sendDualArmJointPosition<double>(true, left_arm_target_joint_pos, right_arm_target_joint_pos);
     };
 
     struct timespec wakeup_time = {0, 0};
