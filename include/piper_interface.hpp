@@ -591,23 +591,23 @@ public:
 
     /**
      * @brief Set zero position for a specific joint.
-     * @param joint_id 1-6
      * @return true if command sent.
      */
-    bool setJointZero(uint8_t joint_id) 
+    bool setJointZero(uint8_t idx) 
     {
-        if (joint_id < 1 || joint_id > 6) return false;
+        if (idx < 0 || idx > 5) return false;
         struct can_frame frame;
         frame.can_id = 0x475;
         frame.can_dlc = 8;
         std::memset(frame.data, 0, 8);
-        frame.data[0] = joint_id;
+        frame.data[0] = idx + 1;
         frame.data[1] = 0xAE;  // Set zero
         return sendCanFrame(frame);
     }
 
     bool setCollisionProtectionLevel(uint8_t level)
     {
+        if ( level > 8 ) level = 8;
         struct can_frame frame;
         frame.can_id = 0x47A;
         frame.can_dlc = 8;
@@ -628,6 +628,32 @@ public:
         frame.can_dlc = 8;
         std::memset(frame.data, 0, 8);
         frame.data[1] = 0x02;
+        return sendCanFrame(frame);
+    }
+
+    bool clearJointErrorCode(int idx)
+    {
+        struct can_frame frame;
+        frame.can_id = 0x475;
+        frame.can_dlc = 8;
+        std::memset(frame.data, 0, 8);
+        frame.data[0] = idx + 1;
+        frame.data[3] = 0x7F; // maximum joint acceleration invalid value.
+        frame.data[4] = 0xFF; // maximum joint acceleration invalid value.
+        frame.data[5] = 0xAE; // set clear error magic number.
+        return sendCanFrame(frame);
+    }
+
+    bool clearAllJointErrorCode()
+    {
+        struct can_frame frame;
+        frame.can_id = 0x475;
+        frame.can_dlc = 8;
+        std::memset(frame.data, 0, 8);
+        frame.data[0] = 7;
+        frame.data[3] = 0x7F; // maximum joint acceleration invalid value.
+        frame.data[4] = 0xFF; // maximum joint acceleration invalid value.
+        frame.data[5] = 0xAE; // set clear error magic number.
         return sendCanFrame(frame);
     }
 

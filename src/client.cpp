@@ -36,6 +36,8 @@ int main(void)
     right_arm_interface.enterCANControlMode();
     left_arm_interface.listen();
     right_arm_interface.listen();
+    left_arm_interface.clearAllJointErrorCode();
+    right_arm_interface.clearAllJointErrorCode();
     bool left_arm_enabled = left_arm_interface.enableAllMotorsUntilConfirmed(20);
     bool right_arm_enabled = right_arm_interface.enableAllMotorsUntilConfirmed(20);
     if ( !left_arm_enabled || !right_arm_enabled )
