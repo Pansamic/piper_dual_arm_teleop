@@ -1,4 +1,7 @@
-const char piper_dual_arm_position_full_xml[] =
+#ifndef __MODELXML_H__
+#define __MODEL_XML_H
+
+const char piper_model_torque[] =
 R"delimiter(
 <mujoco model="piper dual arm">
   <compiler angle="radian" />
@@ -121,3 +124,4 @@ R"delimiter(
   </actuator>
 </mujoco>
 )delimiter";
+#endif // __MODELXML_H__
