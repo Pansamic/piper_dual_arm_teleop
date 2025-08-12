@@ -107,9 +107,9 @@ public:
             left_arm_interface.getJointAngle(0), left_arm_interface.getJointAngle(1), left_arm_interface.getJointAngle(2),
             left_arm_interface.getJointAngle(3), left_arm_interface.getJointAngle(4), left_arm_interface.getJointAngle(5));
         double left_gripper_travel = left_arm_interface.getGripperTravel();
-        auto [left_gripper1_transform, left_gripper2_transform] = left_arm_model.getGripperTransform(joint_pos, left_gripper_travel / 1000.0 / 2, left_gripper_travel / 1000.0 / 2);
+        auto [left_gripper1_transform, left_gripper2_transform] = left_arm_model.getGripperTransform(joint_pos, left_gripper_travel / 1000.0 / 2, -left_gripper_travel / 1000.0 / 2);
         double right_gripper_travel = right_arm_interface.getGripperTravel();
-        auto [right_gripper1_transform, right_gripper2_transform] = right_arm_model.getGripperTransform(joint_pos, right_gripper_travel / 1000.0 / 2, right_gripper_travel / 1000.0 / 2);
+        auto [right_gripper1_transform, right_gripper2_transform] = right_arm_model.getGripperTransform(joint_pos, right_gripper_travel / 1000.0 / 2, -right_gripper_travel / 1000.0 / 2);
         
         left_gripper1_pos = left_gripper1_transform.block<3, 1>(0, 3);
         left_gripper2_pos = left_gripper2_transform.block<3, 1>(0, 3);
