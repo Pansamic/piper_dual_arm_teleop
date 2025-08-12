@@ -129,19 +129,20 @@ private:
     void updateArmControl(const PiperArmModel<double>& model, const PiperInterface<double>& interface, BsplineTrajectoryBuffer<double, NumDof>& trajbuffer)
     {
         auto [target_joint_pos, target_joint_vel, target_joint_acc] = trajbuffer.interpolate(std::chrono::steady_clock::now());
-        JointState<double, NumDof> target_joint_state = {target_joint_pos, target_joint_vel, target_joint_acc};
-        JointState<double, NumDof> current_joint_state;
-        current_joint_state.joint_acc.setZero();
-        current_joint_state.joint_torq.setZero();
-        for ( std::size_t i=0 ; i<NumDof ; i++ )
-        {
-            current_joint_state.joint_pos(i) = interface.getJointFeedbackAngle(i);
-            current_joint_state.joint_vel(i) = interface.getJointFeedbackVelocity(i);
-        }
-        auto target_joint_torque = controller.computeTorqueControlOutput(model, Eigen::Vector<double, 3>::Zero(), target_joint_state, current_joint_state);
+        // JointState<double, NumDof> target_joint_state = {target_joint_pos, target_joint_vel, target_joint_acc};
+        // JointState<double, NumDof> current_joint_state;
+        // current_joint_state.joint_acc.setZero();
+        // current_joint_state.joint_torq.setZero();
+        // for ( std::size_t i=0 ; i<NumDof ; i++ )
+        // {
+        //     current_joint_state.joint_pos(i) = interface.getJointFeedbackAngle(i);
+        //     current_joint_state.joint_vel(i) = interface.getJointFeedbackVelocity(i);
+        // }
+        // auto target_joint_torque = controller.computeTorqueControlOutput(model, Eigen::Vector<double, 3>::Zero(), target_joint_state, current_joint_state);
+        std::array<double, NumDof> target_joint_pos_vec{
+            target_joint_pos[0], target_joint_pos[1], target_joint_pos[2],
+            target_joint_pos[3], target_joint_pos[4], target_joint_pos[5]};
         interface.setControlMode(PiperInterface<double>::MoveMode::MOVE_J);
-        std::array<double, NumDof> target_joint_pos_vec;
-        memcpy(target_joint_pos_vec.data(), current_joint_state.joint_pos.data(), NumDof);
         interface.setJointPosition(target_joint_pos_vec);
     }
 };
@@ -198,10 +199,10 @@ int main(void)
             {
                 continue ;
             }
-            LOG_INFO("left hand position:x={:.4f},y={:.4f},z={:.4}", left_hand_position[0], left_hand_position[1], left_hand_position[2]);
-            LOG_INFO("left hand orientation:x={:.4f},y={:.4f},z={:.4},w={:.4}", left_hand_orientation[0], left_hand_orientation[1], left_hand_orientation[2], left_hand_orientation[3]);
-            LOG_INFO("right hand position:x={:.4f},y={:.4f},z={:.4}", right_hand_position[0], right_hand_position[1], right_hand_position[2]);
-            LOG_INFO("right hand orientation:x={:.4f},y={:.4f},z={:.4},w={:.4}", right_hand_orientation[0], right_hand_orientation[1], right_hand_orientation[2], right_hand_orientation[3]);
+            LOG_DEBUG("left hand position:x={:.4f},y={:.4f},z={:.4}", left_hand_position[0], left_hand_position[1], left_hand_position[2]);
+            LOG_DEBUG("left hand orientation:x={:.4f},y={:.4f},z={:.4},w={:.4}", left_hand_orientation[0], left_hand_orientation[1], left_hand_orientation[2], left_hand_orientation[3]);
+            LOG_DEBUG("right hand position:x={:.4f},y={:.4f},z={:.4}", right_hand_position[0], right_hand_position[1], right_hand_position[2]);
+            LOG_DEBUG("right hand orientation:x={:.4f},y={:.4f},z={:.4},w={:.4}", right_hand_orientation[0], right_hand_orientation[1], right_hand_orientation[2], right_hand_orientation[3]);
         }
 
         client.updatePlan(left_hand_position, left_hand_orientation, right_hand_position, right_hand_orientation);
