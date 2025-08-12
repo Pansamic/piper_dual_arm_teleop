@@ -113,7 +113,7 @@ private:
             actual_arm_joint_pos = interface.getRightArmJointPosition();
         }
         Eigen::Matrix4d hand_site_pose = Eigen::Matrix4d::Identity();
-        hand_site_pose.block<3, 3>(0, 0) = hand_site_ori /** offset.toRotationMatrix()*/;
+        hand_site_pose.block<3, 3>(0, 0) = hand_site_ori * offset.toRotationMatrix();
         hand_site_pose.block<3, 1>(0, 3) = hand_site_pos;
 
         Eigen::Vector<double, NumDof> ik_result = Eigen::Vector<double, NumDof>::Zero();
@@ -121,7 +121,10 @@ private:
         {
             if ( model.getDampedLeastSquareInverseKinematics(ik_result, model, hand_site_pose, actual_arm_joint_pos) == ErrorCode::NoResult )
             {
-                LOG_WARN("inverse kinematics failed.");
+                if ( &model == &left_arm_model )
+                    LOG_WARN("left arm inverse kinematics failed.");
+                else
+                    LOG_WARN("right arm inverse kinematics failed.");
                 return std::make_tuple(hand_site_pos, Eigen::Quaterniond(hand_site_ori));
             }
         }

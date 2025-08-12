@@ -144,7 +144,10 @@ private:
         {
             if ( model.getDampedLeastSquareInverseKinematics(ik_result, model, pose, actual_arm_joint_pos) == ErrorCode::NoResult )
             {
-                LOG_WARN("inverse kinematics failed.");
+                if ( &model == &left_arm_model )
+                    LOG_WARN("left arm inverse kinematics failed.");
+                else
+                    LOG_WARN("right arm inverse kinematics failed.");
                 return ;
             }
         }
