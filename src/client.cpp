@@ -129,7 +129,7 @@ private:
     void updateArmControl(const PiperArmModel<double>& model, const PiperInterface<double>& interface, BsplineTrajectoryBuffer<double, NumDof>& trajbuffer)
     {
         auto [target_joint_pos, target_joint_vel, target_joint_acc] = trajbuffer.interpolate(std::chrono::steady_clock::now());
-        JointState<double, NumDof> target_joint_state = {target_joint_pos, target_joint_vel, target_joint_acc};
+        // JointState<double, NumDof> target_joint_state = {target_joint_pos, target_joint_vel, target_joint_acc};
         JointState<double, NumDof> current_joint_state;
         current_joint_state.joint_acc.setZero();
         current_joint_state.joint_torq.setZero();
@@ -138,12 +138,12 @@ private:
             current_joint_state.joint_pos(i) = interface.getJointFeedbackAngle(i);
             current_joint_state.joint_vel(i) = interface.getJointFeedbackVelocity(i);
         }
-        auto target_joint_torque = controller.computeTorqueControlOutput(model, Eigen::Vector<double, 3>::Zero(), target_joint_state, current_joint_state);
-        // auto torque_compensate = controller.computeGravityCompensate(model, target_joint_state);
-        interface.setControlMode(PiperInterface<double>::MoveMode::MOVE_J);
-        interface.setJointPosition(target_joint_pos);
-        // interface.setControlMode(PiperInterface<double>::MoveMode::MOVE_M, true);
-        // interface.setJointMitControl(target_joint_pos, Eigen::Vector<double, 6>::Zero(), torque_compensate);
+        // auto target_joint_torque = controller.computeTorqueControlOutput(model, Eigen::Vector<double, 3>::Zero(), target_joint_state, current_joint_state);
+        auto torque_compensate = controller.computeGravityCompensate(model, current_joint_state);
+        // interface.setControlMode(PiperInterface<double>::MoveMode::MOVE_J);
+        // interface.setJointPosition(target_joint_pos);
+        interface.setControlMode(PiperInterface<double>::MoveMode::MOVE_M, true);
+        interface.setJointMitControl(target_joint_pos, Eigen::Vector<double, 6>::Zero(), torque_compensate);
     }
 };
 
