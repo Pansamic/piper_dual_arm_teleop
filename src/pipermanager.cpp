@@ -16,9 +16,13 @@ int main(int argc, char* argv[])
 {
     argparse::ArgumentParser program("pipermanager");
 
-    program.add_argument("-d");
-    program.add_argument("--enable").flag();
-    program.add_argument("--disable").flag();
+    program.add_argument("-d", "--device")
+        .help("device interface name. e.g., can1");
+    program.add_argument("-c", "--control")
+        .help("enable disable zero");
+    program.add_argument("-r", "--read");
+    program.add_argument("-s", "--set");
+
     try {
         program.parse_args(argc, argv);
     } catch (const std::exception &err) {
@@ -36,13 +40,19 @@ int main(int argc, char* argv[])
     interface.initCan();
     interface.listen();
 
-    if ( program.get<bool>("--enable") )
+    std::string control_function = program.get<std::string>("-c");
+    if ( control_function == "enable" )
     {
         interface.enableAllMotorsUntilConfirmed(20);
     }
-    else if ( program.get<bool>("--disable") )
+    else if ( control_function == "disable" )
     {
         interface.disableAllMotorsUntilConfirmed(20);
+    }
+    else if ( control_function == "zero" )
+    {
+        interface.setControlMode(PiperInterface<double>::MoveMode::MOVE_J);
+        interface.setJointPosition({0.0, 0.0, 0.0, 0.0, 0.0, 0.0});
     }
 
     interface.stop();
