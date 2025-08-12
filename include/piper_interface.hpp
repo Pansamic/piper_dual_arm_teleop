@@ -359,7 +359,7 @@ public:
      * @return true if command sent successfully.
      */
     bool setControlMode(MoveMode move_mode, bool enable_mit_mode = false, ControlMode mode = ControlMode::CAN_CONTROL_MODE, uint8_t speed_percentage = 100,
-                        uint8_t dwell_time = 0, InstallationPose installation = HORIZONTAL) 
+                        uint8_t dwell_time = 0, InstallationPose installation = INVALID_POSE) 
     {
         if (speed_percentage > 100) speed_percentage = 100;
         struct can_frame frame;
