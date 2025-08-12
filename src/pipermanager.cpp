@@ -51,8 +51,13 @@ int main(int argc, char* argv[])
     }
     else if ( control_function == "zero" )
     {
-        interface.setControlMode(PiperInterface<double>::MoveMode::MOVE_J);
-        interface.setJointPosition({0.0, 0.0, 0.0, 0.0, 0.0, 0.0});
+        for ( int i=0 ; i<20 ; i++ )
+        {
+            interface.setControlMode(PiperInterface<double>::MoveMode::MOVE_J);
+            interface.setJointPosition({0.0, 0.0, 0.0, 0.0, 0.0, 0.0});
+            std::this_thread::sleep_for(std::chrono::milliseconds(20));
+        }
+
     }
 
     interface.stop();
