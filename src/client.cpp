@@ -47,6 +47,10 @@ int main(void)
         spdlog::drop_all();
         return 0;
     }
+    left_arm_interface.setCollisionProtectionLevel(0);
+    left_arm_interface.setAllJointParameterAsDefault();
+    right_arm_interface.setCollisionProtectionLevel(0);
+    right_arm_interface.setAllJointParameterAsDefault();
 
     struct timespec wakeup_time = {0, 0};
     struct timespec cycletime = {0, 0}; // Initialize to zero

@@ -606,6 +606,31 @@ public:
         return sendCanFrame(frame);
     }
 
+    bool setCollisionProtectionLevel(uint8_t level)
+    {
+        struct can_frame frame;
+        frame.can_id = 0x47A;
+        frame.can_dlc = 8;
+        std::memset(frame.data, 0, 8);
+        frame.data[0] = level;
+        frame.data[1] = level;
+        frame.data[2] = level;
+        frame.data[3] = level;
+        frame.data[4] = level;
+        frame.data[5] = level;
+        return sendCanFrame(frame);
+    }
+
+    bool setAllJointParameterAsDefault()
+    {
+        struct can_frame frame;
+        frame.can_id = 0x477;
+        frame.can_dlc = 8;
+        std::memset(frame.data, 0, 8);
+        frame.data[1] = 0x02;
+        return sendCanFrame(frame);
+    }
+
     /**
      * @brief Query current robot state by processing all received CAN frames.
      * @return true if frames were processed.
