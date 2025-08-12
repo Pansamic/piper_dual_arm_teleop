@@ -16,6 +16,7 @@ int main(int argc, char* argv[])
 {
     argparse::ArgumentParser program("pipermanager");
 
+    program.add_argument("-d");
     program.add_argument("--enable").flag();
     program.add_argument("--disable").flag();
     try {
@@ -25,8 +26,13 @@ int main(int argc, char* argv[])
         std::cerr << program;
         return 1;
     }
-
-    PiperInterface<double> interface("can1");
+    if ( !program.is_used("-d") )
+    {
+        LOG_ERROR("\'-d\' is required");
+        std::cout << program << std::endl;
+        return 1;
+    }
+    PiperInterface<double> interface(program.get("-d"));
     interface.initCan();
     interface.listen();
 
