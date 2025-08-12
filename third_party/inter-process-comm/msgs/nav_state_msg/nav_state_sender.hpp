@@ -23,7 +23,7 @@ struct NavStateSender {
   using DataType                         = nav_state_msg;
   static constexpr uint8_t parser_type   = ParserType::Sender;
   static constexpr uint16_t header       = 0xDCDC;
-  static constexpr size_t length         = 54;
+  static constexpr size_t length         = 70;
   static constexpr std::string_view name = "nav_state_sender";
 
   static inline void Process(const DataType& in, std::span<std::byte>& out) {
@@ -38,23 +38,42 @@ struct NavStateSender {
     memcpy(&out[16], in.base_pos.data(), sizeof(float) * 3);
     tmp_32bits = EncodeQuaternion<float>(in.base_quat.data());
     memcpy(&out[28], &tmp_32bits, sizeof(uint32_t));
-    // left joints
-    tmp_32bits = Encode3D<float, 10>(in.left_joints[0], in.left_joints[1], in.left_joints[2], m_PI);
+    // // left joints
+    // tmp_32bits = Encode3D<float, 10>(in.left_joints[0], in.left_joints[1], in.left_joints[2], m_PI);
+    // memcpy(&out[32], &tmp_32bits, sizeof(uint32_t));
+    // tmp_32bits = Encode3D<float, 10>(in.left_joints[3], in.left_joints[4], in.left_joints[5], m_PI);
+    // memcpy(&out[36], &tmp_32bits, sizeof(uint32_t));
+    // // right joints
+    // tmp_32bits = Encode3D<float, 10>(in.right_joints[0], in.right_joints[1], in.right_joints[2], m_PI);
+    // memcpy(&out[40], &tmp_32bits, sizeof(uint32_t));
+    // tmp_32bits = Encode3D<float, 10>(in.right_joints[3], in.right_joints[4], in.right_joints[5], m_PI);
+    // memcpy(&out[44], &tmp_32bits, sizeof(uint32_t));
+
+    // left grip
+    tmp_32bits = Encode3D<float, 10>(in.left_grip_one_pos[0], in.left_grip_one_pos[1], in.left_grip_one_pos[2], 1.2);
     memcpy(&out[32], &tmp_32bits, sizeof(uint32_t));
-    tmp_32bits = Encode3D<float, 10>(in.left_joints[3], in.left_joints[4], in.left_joints[5], m_PI);
+    tmp_32bits = EncodeQuaternion<float>(in.left_grip_one_quat.data());
     memcpy(&out[36], &tmp_32bits, sizeof(uint32_t));
-    // right joints
-    tmp_32bits = Encode3D<float, 10>(in.right_joints[0], in.right_joints[1], in.right_joints[2], m_PI);
+    tmp_32bits = Encode3D<float, 10>(in.left_grip_two_pos[0], in.left_grip_two_pos[1], in.left_grip_two_pos[2], 1.2);
     memcpy(&out[40], &tmp_32bits, sizeof(uint32_t));
-    tmp_32bits = Encode3D<float, 10>(in.right_joints[3], in.right_joints[4], in.right_joints[5], m_PI);
+    tmp_32bits = EncodeQuaternion<float>(in.left_grip_two_quat.data());
     memcpy(&out[44], &tmp_32bits, sizeof(uint32_t));
+    // right grip
+    tmp_32bits = Encode3D<float, 10>(in.right_grip_one_pos[0], in.right_grip_one_pos[1], in.right_grip_one_pos[2], 1.2);
+    memcpy(&out[48], &tmp_32bits, sizeof(uint32_t));
+    tmp_32bits = EncodeQuaternion<float>(in.right_grip_one_quat.data());
+    memcpy(&out[52], &tmp_32bits, sizeof(uint32_t));
+    tmp_32bits = Encode3D<float, 10>(in.right_grip_two_pos[0], in.right_grip_two_pos[1], in.right_grip_two_pos[2], 1.2);
+    memcpy(&out[56], &tmp_32bits, sizeof(uint32_t));
+    tmp_32bits = EncodeQuaternion<float>(in.right_grip_two_quat.data());
+    memcpy(&out[60], &tmp_32bits, sizeof(uint32_t));
     // force feedback
     tmp_32bits = Encode2D<float, 16>(in.left_force, in.right_force);
-    memcpy(&out[48], &tmp_32bits, sizeof(uint32_t));
+    memcpy(&out[64], &tmp_32bits, sizeof(uint32_t));
     // CRC
-    uint16_t crc = CRC::CalculateBits(out.data(), 52, CRC::CRC_16_KERMIT());
-    memcpy(&out[52], &crc, sizeof(uint16_t));
-    // total 54 bytes
+    uint16_t crc = CRC::CalculateBits(out.data(), 68, CRC::CRC_16_KERMIT());
+    memcpy(&out[68], &crc, sizeof(uint16_t));
+    // total 70 bytes
     return;
   }
 };

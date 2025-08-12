@@ -23,16 +23,16 @@ struct NavStateReceiver {
   using DataType                         = nav_state_msg;
   static constexpr uint8_t parser_type   = ParserType::Receiver;
   static constexpr uint16_t header       = 0xDCDC;
-  static constexpr size_t length         = 54;
+  static constexpr size_t length         = 70;
   static constexpr std::string_view name = "nav_state_receiver";
 
   static inline bool Process(const std::span<std::byte>& in, DataType& out) {
     constexpr float m_PI = 3.14159265358979323846f;
     // crc check
     {
-      uint16_t crc = CRC::CalculateBits(in.data(), 52, CRC::CRC_16_KERMIT());
+      uint16_t crc = CRC::CalculateBits(in.data(), 68, CRC::CRC_16_KERMIT());
       uint16_t crc_in;
-      memcpy(&crc_in, &in[52], sizeof(uint16_t));
+      memcpy(&crc_in, &in[68], sizeof(uint16_t));
       if (crc != crc_in) return false;
     }
 
@@ -46,18 +46,35 @@ struct NavStateReceiver {
     // base quaternion
     memcpy(&tmp_32bits, &in[28], sizeof(uint32_t));
     DecodeQuaternion<float>(tmp_32bits, out.base_quat.data());
-    // left joints
+    // // left joints
+    // memcpy(&tmp_32bits, &in[32], sizeof(uint32_t));
+    // std::tie(out.left_joints[0], out.left_joints[1], out.left_joints[2]) = Decode3D<float, 10>(tmp_32bits, m_PI);
+    // memcpy(&tmp_32bits, &in[36], sizeof(uint32_t));
+    // std::tie(out.left_joints[3], out.left_joints[4], out.left_joints[5]) = Decode3D<float, 10>(tmp_32bits, m_PI);
+    // // right joints
+    // memcpy(&tmp_32bits, &in[40], sizeof(uint32_t));
+    // std::tie(out.right_joints[0], out.right_joints[1], out.right_joints[2]) = Decode3D<float, 10>(tmp_32bits, m_PI);
+    // memcpy(&tmp_32bits, &in[44], sizeof(uint32_t));
+    // std::tie(out.right_joints[3], out.right_joints[4], out.right_joints[5]) = Decode3D<float, 10>(tmp_32bits, m_PI);
     memcpy(&tmp_32bits, &in[32], sizeof(uint32_t));
-    std::tie(out.left_joints[0], out.left_joints[1], out.left_joints[2]) = Decode3D<float, 10>(tmp_32bits, m_PI);
+    std::tie(out.left_grip_one_pos[0], out.left_grip_one_pos[1], out.left_grip_one_pos[2]) = Decode3D<float, 10>(tmp_32bits, 1.2);
     memcpy(&tmp_32bits, &in[36], sizeof(uint32_t));
-    std::tie(out.left_joints[3], out.left_joints[4], out.left_joints[5]) = Decode3D<float, 10>(tmp_32bits, m_PI);
-    // right joints
+    DecodeQuaternion<float>(tmp_32bits, out.left_grip_one_quat.data());
     memcpy(&tmp_32bits, &in[40], sizeof(uint32_t));
-    std::tie(out.right_joints[0], out.right_joints[1], out.right_joints[2]) = Decode3D<float, 10>(tmp_32bits, m_PI);
+    std::tie(out.left_grip_two_pos[0], out.left_grip_two_pos[1], out.left_grip_two_pos[2]) = Decode3D<float, 10>(tmp_32bits, 1.2);
     memcpy(&tmp_32bits, &in[44], sizeof(uint32_t));
-    std::tie(out.right_joints[3], out.right_joints[4], out.right_joints[5]) = Decode3D<float, 10>(tmp_32bits, m_PI);
-    // force feedback
+    DecodeQuaternion<float>(tmp_32bits, out.left_grip_two_quat.data());
+
     memcpy(&tmp_32bits, &in[48], sizeof(uint32_t));
+    std::tie(out.right_grip_one_pos[0], out.right_grip_one_pos[1], out.right_grip_one_pos[2]) = Decode3D<float, 10>(tmp_32bits, 1.2);
+    memcpy(&tmp_32bits, &in[52], sizeof(uint32_t));
+    DecodeQuaternion<float>(tmp_32bits, out.right_grip_one_quat.data());
+    memcpy(&tmp_32bits, &in[56], sizeof(uint32_t));
+    std::tie(out.right_grip_two_pos[0], out.right_grip_two_pos[1], out.right_grip_two_pos[2]) = Decode3D<float, 10>(tmp_32bits, 1.2);
+    memcpy(&tmp_32bits, &in[60], sizeof(uint32_t));
+    DecodeQuaternion<float>(tmp_32bits, out.right_grip_two_quat.data());
+    // force feedback
+    memcpy(&tmp_32bits, &in[64], sizeof(uint32_t));
     std::tie(out.left_force, out.right_force) = Decode2D<float, 16>(tmp_32bits);
     return true;
   }
