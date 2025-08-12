@@ -252,6 +252,7 @@ int main(void)
 
     control_thread.join();
     client.stop();
+    messenger.stop();
 
     spdlog::drop_all();
     return 0;
