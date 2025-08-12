@@ -11,7 +11,8 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 option(BUILD_CLIENT "Build real hardware piper arm controller client" ON)
 option(BUILD_SERVER "Build MuJoCo GUI simulator server" ON)
-option(BUILD_TESTING OFF)
+option(BUILD_TESTS  "Build tests" OFF)
+option(BUILD_TOOL   "Build piper manipulator manager tool" ON)
 
 add_definitions(-DPROJECT_PATH="${CMAKE_CURRENT_SOURCE_DIR}")
 
@@ -63,7 +64,7 @@ if ( BUILD_CLIENT )
     )
 endif()
 
-if ( BUILD_TESTING )
+if ( BUILD_TESTS )
     add_executable(test_mujoco_backend
         test/test_mujoco_backend.cpp
     )
@@ -78,5 +79,16 @@ if ( BUILD_TESTING )
     target_link_libraries(test_mujoco_backend PRIVATE
         libmujoco.so
         pthread
+    )
+endif()
+
+if ( BUILD_TOOL )
+    add_executable(pipermanager 
+        src/pipermanager.cpp
+    )
+    target_include_directories(pipermanager PRIVATE
+        include
+        third_party/spdlog-1.15.3/include
+        third_party/eigen-3.4.0
     )
 endif()
