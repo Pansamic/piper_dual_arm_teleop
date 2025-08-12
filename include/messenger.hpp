@@ -197,7 +197,7 @@ public:
             right_hand_orientation[0] = static_cast<T>(msg.right_hand_quat[0]);
             right_hand_orientation[1] = static_cast<T>(msg.right_hand_quat[1]);
             right_hand_orientation[2] = static_cast<T>(msg.right_hand_quat[2]);
-            right_hand_orientation[2] = static_cast<T>(msg.right_hand_quat[2]);
+            right_hand_orientation[3] = static_cast<T>(msg.right_hand_quat[3]);
         }
         return true;
     }
