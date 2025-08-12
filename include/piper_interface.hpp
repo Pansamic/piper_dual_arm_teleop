@@ -22,8 +22,8 @@
 #include <net/if.h>
 #include <poll.h>
 #include <fcntl.h>
-
-#include "log.hpp"
+#include <Eigen/Core>
+#include <log.hpp>
 
 /**
  * @brief Class for controlling and communicating with the Piper robotic arm via CAN protocol.
@@ -52,7 +52,7 @@ public:
         MOVE_J = 0x01,  // Joint interpolation
         MOVE_L = 0x02,  // Linear in Cartesian
         MOVE_C = 0x03,  // Circular
-        MOVE_M = 0x04   // Custom trajectory
+        MOVE_M = 0x04   // MIT mode
     };
 
     // Arm installation orientation
@@ -417,7 +417,7 @@ public:
      * @brief Set target joint angles (J1-J6) in degrees.
      * Units: radian.
      */
-    bool setJointPosition(std::array<T, 6> joint_pos) const
+    bool setJointPosition(const Eigen::Vector<T, 6>& joint_pos) const
     {
         auto sendSegment = [this](canid_t id, int32_t val1, int32_t val2) 
         {
@@ -450,7 +450,7 @@ public:
         return true;
     }
 
-    bool setJointMitControl(const std::array<T, 6>& joint_pos, const std::array<T, 6>& joint_vel, const std::array<T, 6>& joint_torq) const
+    bool setJointMitControl(const Eigen::Vector<T, 6>& joint_pos, const Eigen::Vector<T, 6>& joint_vel, const Eigen::Vector<T, 6>& joint_torq) const
     {
         auto sendSegment = [this](int id, T pos, T vel, T torq, T kp, T kd) -> bool
         {
@@ -1161,12 +1161,12 @@ private:
         bits.stall_protection = (status >> 7) & 0x01;
     }
 
-    int16_t floating2int16(T x, T min, T max, uint8_t bits)
+    static int16_t floating2int16(T x, T min, T max, uint8_t bits)
     {
         return static_cast<int16_t>((x-min)*(static_cast<T>((1<<bits)-1)/(max-min))); 
     };
 
-    int8_t floating2int8(T x, T min, T max, uint8_t bits)
+    static int8_t floating2int8(T x, T min, T max, uint8_t bits)
     {
         return static_cast<int8_t>((x-min)*(static_cast<T>((1<<bits)-1)/(max-min))); 
     };
