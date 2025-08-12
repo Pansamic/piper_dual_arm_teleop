@@ -38,7 +38,9 @@ int main(int argc, char* argv[])
     }
     PiperInterface<double> interface(program.get("-d"));
     interface.initCan();
+    interface.enterCANControlMode();
     interface.listen();
+    interface.clearAllJointErrorCode();
 
     std::string control_function = program.get<std::string>("-c");
     if ( control_function == "enable" )
