@@ -243,10 +243,10 @@ int main(void)
                 left_gripper1_pos, left_gripper1_ori, left_gripper2_pos, left_gripper2_ori,
                 right_gripper1_pos, right_gripper1_ori, right_gripper2_pos, right_gripper2_ori);
             client.updatePlan(left_hand_position, left_hand_orientation, right_hand_position, right_hand_orientation);
-            LOG_DEBUG("left hand position:x={:.4f},y={:.4f},z={:.4}", left_hand_position[0], left_hand_position[1], left_hand_position[2]);
-            LOG_DEBUG("left hand orientation:x={:.4f},y={:.4f},z={:.4},w={:.4}", left_hand_orientation[0], left_hand_orientation[1], left_hand_orientation[2], left_hand_orientation[3]);
-            LOG_DEBUG("right hand position:x={:.4f},y={:.4f},z={:.4}", right_hand_position[0], right_hand_position[1], right_hand_position[2]);
-            LOG_DEBUG("right hand orientation:x={:.4f},y={:.4f},z={:.4},w={:.4}", right_hand_orientation[0], right_hand_orientation[1], right_hand_orientation[2], right_hand_orientation[3]);
+            LOG_DEBUG("receive left hand position:x={:.4f},y={:.4f},z={:.4}", left_hand_position[0], left_hand_position[1], left_hand_position[2]);
+            LOG_DEBUG("receive left hand orientation:x={:.4f},y={:.4f},z={:.4},w={:.4}", left_hand_orientation[0], left_hand_orientation[1], left_hand_orientation[2], left_hand_orientation[3]);
+            LOG_DEBUG("receive right hand position:x={:.4f},y={:.4f},z={:.4}", right_hand_position[0], right_hand_position[1], right_hand_position[2]);
+            LOG_DEBUG("receive right hand orientation:x={:.4f},y={:.4f},z={:.4},w={:.4}", right_hand_orientation[0], right_hand_orientation[1], right_hand_orientation[2], right_hand_orientation[3]);
         }
     }
 

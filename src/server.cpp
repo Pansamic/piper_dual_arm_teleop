@@ -105,12 +105,18 @@ private:
             hand_site_pos = interface.getLeftHandSitePosition();
             hand_site_ori = interface.getLeftHandSiteOrientation();
             actual_arm_joint_pos = interface.getLeftArmJointPosition();
+            Eigen::Quaterniond hand_site_ori_quat(hand_site_ori);
+            LOG_DEBUG("send left hand position:x={:.4f},y={:.4f},z={:.4}", hand_site_pos[0], hand_site_pos[1], hand_site_pos[2]);
+            LOG_DEBUG("send left hand orientation:x={:.4f},y={:.4f},z={:.4},w={:.4}", hand_site_ori_quat.x(), hand_site_ori_quat.y(), hand_site_ori_quat.z(), hand_site_ori_quat.w());
         }
         else
         {
             hand_site_pos = interface.getRightHandSitePosition();
             hand_site_ori = interface.getRightHandSiteOrientation();
             actual_arm_joint_pos = interface.getRightArmJointPosition();
+            Eigen::Quaterniond hand_site_ori_quat(hand_site_ori);
+            LOG_DEBUG("send right hand position:x={:.4f},y={:.4f},z={:.4}", hand_site_pos[0], hand_site_pos[1], hand_site_pos[2]);
+            LOG_DEBUG("send right hand orientation:x={:.4f},y={:.4f},z={:.4},w={:.4}", hand_site_ori_quat.x(), hand_site_ori_quat.y(), hand_site_ori_quat.z(), hand_site_ori_quat.w());
         }
         Eigen::Matrix4d hand_site_pose = Eigen::Matrix4d::Identity();
         hand_site_pose.block<3, 3>(0, 0) = hand_site_ori * offset.toRotationMatrix();
@@ -157,14 +163,14 @@ private:
 int main(void)
 {
     /* Create log file. */
-    initLogger(PROJECT_PATH"/logs", "client");
+    initLogger(PROJECT_PATH"/logs", "server");
     /* Initialize program stop flag as false. */
     TerminationHandler::stop_requested = false;
     /* Register SIGINT handler. */
     TerminationHandler::setup();
 
-    DualArmTeleopServer client;
-    client.initialize();
+    DualArmTeleopServer server;
+    server.initialize();
 
     std::thread control_thread([&]()
     {
@@ -179,7 +185,7 @@ int main(void)
             increaseTimeSpec(&wakeup_time, &cycletime);
             clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, &wakeup_time, NULL);
 
-            client.updateControl();
+            server.updateControl();
         }
     });
 
@@ -194,11 +200,11 @@ int main(void)
         increaseTimeSpec(&wakeup_time, &cycletime);
         clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, &wakeup_time, NULL);
 
-        client.updatePlan();
+        server.updatePlan();
     }
 
     control_thread.join();
-    client.stop();
+    server.stop();
 
     spdlog::drop_all();
     return 0;
