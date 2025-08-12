@@ -154,7 +154,7 @@ public:
 
     void stop()
     {
-        disableAllMotors(20);
+        disableAllMotors();
         listening_ = false;
         listen_thread_.join();
         if (can_socket_ >= 0) 
@@ -243,27 +243,28 @@ private:
     JointDriverLS joint_driver_ls[6];
 
 public:
+    bool enableAllMotors()
+    {
+        struct can_frame frame;
+        frame.can_id = 0x471;
+        frame.can_dlc = 8;
+        std::memset(frame.data, 0, 8);
+        frame.data[0] = 0x07;  // All joints
+        frame.data[1] = 0x02;  // Enable
+        return sendCanFrame(frame);
+    }
     /**
      * @brief Enable all joint motors.
      * @return true if command sent successfully.
      */
-    bool enableAllMotors(std::size_t trials) 
+    bool enableAllMotorsUntilConfirmed(std::size_t trials) 
     {
-        auto enable_all_motors = [this]()
-        {
-            struct can_frame frame;
-            frame.can_id = 0x471;
-            frame.can_dlc = 8;
-            std::memset(frame.data, 0, 8);
-            frame.data[0] = 0x07;  // All joints
-            frame.data[1] = 0x02;  // Enable
-            return sendCanFrame(frame);
-        };
+
         bool arm_enabled = false;
         LOG_INFO("start to enable actuators on interface {}", can_interface_);
         for ( std::size_t i=0 ; i<trials ; i++ )
         {
-            enable_all_motors();
+            enableAllMotors();
             std::this_thread::sleep_for(std::chrono::milliseconds(50));
             std::array<bool, 6> enable_status;
             for ( std::size_t j=0 ; j<6 ; j++ )
@@ -287,27 +288,29 @@ public:
         return arm_enabled;
     }
 
+    bool disableAllMotors()
+    {
+        struct can_frame frame;
+        frame.can_id = 0x471;
+        frame.can_dlc = 8;
+        std::memset(frame.data, 0, 8);
+        frame.data[0] = 0x07;  // All joints
+        frame.data[1] = 0x01;  // Disable
+        return sendCanFrame(frame);
+    }
+
     /**
      * @brief Disable all joint motors.
      * @return true if command sent successfully.
      */
-    bool disableAllMotors(std::size_t trials) 
+    bool disableAllMotorsUntilConfirmed(std::size_t trials) 
     {
-        auto disable_all_motors = [this]()
-        {
-            struct can_frame frame;
-            frame.can_id = 0x471;
-            frame.can_dlc = 8;
-            std::memset(frame.data, 0, 8);
-            frame.data[0] = 0x07;  // All joints
-            frame.data[1] = 0x01;  // Disable
-            return sendCanFrame(frame);
-        };
+
         bool arm_disabled = false;
         LOG_INFO("start to disable actuators on interface {}", can_interface_);
         for ( std::size_t i=0 ; i<trials ; i++ )
         {
-            disable_all_motors();
+            disableAllMotors();
             std::this_thread::sleep_for(std::chrono::milliseconds(50));
             std::array<bool, 6> disable_status;
             for ( std::size_t j=0 ; j<6 ; j++ )

@@ -36,8 +36,8 @@ int main(void)
     right_arm_interface.enterCANControlMode();
     left_arm_interface.listen();
     right_arm_interface.listen();
-    bool left_arm_enabled = left_arm_interface.enableAllMotors(20);
-    bool right_arm_enabled = right_arm_interface.enableAllMotors(20);
+    bool left_arm_enabled = left_arm_interface.enableAllMotorsUntilConfirmed(20);
+    bool right_arm_enabled = right_arm_interface.enableAllMotorsUntilConfirmed(20);
     if ( !left_arm_enabled || !right_arm_enabled )
     {
         LOG_ERROR("failed to enable dual arms, exiting...");
@@ -62,9 +62,6 @@ int main(void)
     {
         increaseTimeSpec(&wakeup_time, &cycletime);
         clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, &wakeup_time, NULL);
-
-        left_arm_interface.queryState();
-        right_arm_interface.queryState();
 
         bool enable = false;
         std::array<double, 6> left_arm_target_joint_pos, right_arm_target_joint_pos;
