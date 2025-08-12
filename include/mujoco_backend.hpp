@@ -25,7 +25,7 @@ public:
     explicit MujocoBackend()
     {
         // mjSpec* s = mj_parseXMLString(piper_dual_arm_position_full_xml, nullptr, nullptr, 0);
-        mjSpec* s = mj_parseXML(PROJECT_PATH"/assets/mujoco_model/piper_dual_arm_torque_full.xml", nullptr, nullptr, 0);
+        mjSpec* s = mj_parseXML(PROJECT_PATH"/assets/mujoco_model/piper_dual_arm_torque.xml", nullptr, nullptr, 0);
         if ( s == nullptr )
         {
             throw std::runtime_error("MuJoCo failed to parse XML");

@@ -42,7 +42,7 @@ int main(void)
     // mj_backend.start();
     // mj_frontend.start();
     ArmSimulationInterface<double, NumDof> interface;
-    interface.start(PROJECT_PATH"/assets/mujoco_model/piper_dual_arm_torque_full.xml");
+    interface.start(PROJECT_PATH"/assets/mujoco_model/piper_dual_arm_torque.xml");
 
     PiperArmModel<double> left_arm_model(
         CONFIG_LEFT_ARM_BASE_X, CONFIG_LEFT_ARM_BASE_Y, CONFIG_LEFT_ARM_BASE_Z,
