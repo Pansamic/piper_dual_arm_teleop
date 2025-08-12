@@ -14,11 +14,11 @@
 #include <joint_state.h>
 
 template<typename T, std::size_t NumDof>
-class ArmSimulationInterface
+class MujocoInterface
 {
 public:
-    ArmSimulationInterface() = default;
-    ~ArmSimulationInterface() = default;
+    MujocoInterface() = default;
+    ~MujocoInterface() = default;
 
     void start(const char* mujoco_file_path)
     {
@@ -52,7 +52,7 @@ public:
             this->sim_ready_cv_.wait(lock, [this] { return this->sim_ready_; });
         }
 
-        this->physics_thread_ = std::thread(&ArmSimulationInterface::threadPhysics, this, mujoco_file_path);
+        this->physics_thread_ = std::thread(&MujocoInterface::threadPhysics, this, mujoco_file_path);
         
         // Wait until mujoco model and mujoco data is ready
         {

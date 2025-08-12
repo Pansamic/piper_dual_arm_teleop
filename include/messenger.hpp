@@ -81,16 +81,48 @@ public:
         {
             msg.mask = (1<<15) | (1<<13) | (1<<12);
         }
-        std::array<float, 6> left_arm_joint_pos_float;
-        std::transform(left_arm_joint_pos.begin(), left_arm_joint_pos.end(), left_arm_joint_pos_float.begin(),
-                       [](const T& val) { return static_cast<float>(val); });
-        msg.left_arm_joint_pos = left_arm_joint_pos_float;
-        
-        std::array<float, 6> right_arm_joint_pos_float;
-        std::transform(right_arm_joint_pos.begin(), right_arm_joint_pos.end(), right_arm_joint_pos_float.begin(),
-                       [](const T& val) { return static_cast<float>(val); });
-        msg.right_arm_joint_pos = right_arm_joint_pos_float;
-        
+        for ( std::size_t i=0 ; i<6 ; i++ )
+        {
+            msg.left_arm_joint_pos[i] = static_cast<float>(left_arm_joint_pos[i]);
+            msg.right_arm_joint_pos[i] = static_cast<float>(right_arm_joint_pos[i]);
+        }
+        this->send_mq_.enqueue(msg);
+        return true;
+    }
+
+    template <typename T>
+    bool sendDualArmHandPose(bool enable,
+        const std::array<T, 3>& left_hand_position, const std::array<T, 4>& left_hand_orientation,
+        const std::array<T, 3>& right_hand_position, const std::array<T, 4>& right_hand_orientation)
+    {
+        if ( !this->sender_enabled )
+        {
+            return false;
+        }
+        whole_body_msg msg;
+        msg.mask = 0;
+        if ( enable )
+        {
+            msg.mask = (1<<15) | (1<<13) | (1<<12);
+        }
+        msg.left_hand_pos[0] = static_cast<float>(left_hand_position[0]);
+        msg.left_hand_pos[1] = static_cast<float>(left_hand_position[1]);
+        msg.left_hand_pos[2] = static_cast<float>(left_hand_position[2]);
+
+        msg.left_hand_quat[0] = static_cast<float>(left_hand_orientation[0]);
+        msg.left_hand_quat[1] = static_cast<float>(left_hand_orientation[1]);
+        msg.left_hand_quat[2] = static_cast<float>(left_hand_orientation[2]);
+        msg.left_hand_quat[3] = static_cast<float>(left_hand_orientation[3]);
+
+        msg.right_hand_pos[0] = static_cast<float>(right_hand_position[0]);
+        msg.right_hand_pos[1] = static_cast<float>(right_hand_position[1]);
+        msg.right_hand_pos[2] = static_cast<float>(right_hand_position[2]);
+
+        msg.right_hand_quat[0] = static_cast<float>(right_hand_orientation[0]);
+        msg.right_hand_quat[1] = static_cast<float>(right_hand_orientation[1]);
+        msg.right_hand_quat[2] = static_cast<float>(right_hand_orientation[2]);
+        msg.right_hand_quat[3] = static_cast<float>(right_hand_orientation[3]);
+
         this->send_mq_.enqueue(msg);
         return true;
     }
@@ -111,13 +143,11 @@ public:
         enable = (msg.mask & (1<<15)) && (msg.mask & (1<<13)) && (msg.mask & (1<<12));
         if ( enable )
         {
-            std::array<float, 6> temp_left_arm_joint_pos = msg.left_arm_joint_pos;
-            std::transform(temp_left_arm_joint_pos.begin(), temp_left_arm_joint_pos.end(), left_arm_joint_pos.begin(),
-                           [](const float& val) { return static_cast<T>(val); });
-            
-            std::array<float, 6> temp_right_arm_joint_pos = msg.right_arm_joint_pos;
-            std::transform(temp_right_arm_joint_pos.begin(), temp_right_arm_joint_pos.end(), right_arm_joint_pos.begin(),
-                           [](const float& val) { return static_cast<T>(val); });
+            for ( std::size_t i=0 ; i<6 ; i++ )
+            {
+                left_arm_joint_pos[i] = static_cast<T>(msg.left_arm_joint_pos[i]);
+                right_arm_joint_pos[i] = static_cast<T>(msg.right_arm_joint_pos[i]);
+            }
         }
         return true;
     }
@@ -151,21 +181,23 @@ public:
         enable = (msg.mask & (1<<15)) && (msg.mask & (1<<13)) && (msg.mask & (1<<12));
         if ( enable )
         {
-            std::array<float, 3> temp_left_hand_pos = msg.left_hand_pos;
-            std::transform(temp_left_hand_pos.begin(), temp_left_hand_pos.end(), left_hand_position.begin(),
-                           [](const float& val) { return static_cast<T>(val); });
+            left_hand_position[0] = static_cast<T>(msg.left_hand_pos[0]);
+            left_hand_position[1] = static_cast<T>(msg.left_hand_pos[1]);
+            left_hand_position[2] = static_cast<T>(msg.left_hand_pos[2]);
 
-            std::array<float, 4> temp_left_hand_quat = msg.left_hand_quat;
-            std::transform(temp_left_hand_quat.begin(), temp_left_hand_quat.end(), left_hand_orientation.begin(),
-                           [](const float& val) { return static_cast<T>(val); });
+            left_hand_orientation[0] = static_cast<T>(msg.left_hand_quat[0]);
+            left_hand_orientation[1] = static_cast<T>(msg.left_hand_quat[1]);
+            left_hand_orientation[2] = static_cast<T>(msg.left_hand_quat[2]);
+            left_hand_orientation[3] = static_cast<T>(msg.left_hand_quat[3]);
 
-            std::array<float, 3> temp_right_hand_pos = msg.right_hand_pos;
-            std::transform(temp_right_hand_pos.begin(), temp_right_hand_pos.end(), right_hand_position.begin(),
-                           [](const float& val) { return static_cast<T>(val); });
+            right_hand_position[0] = static_cast<T>(msg.right_hand_pos[0]);
+            right_hand_position[1] = static_cast<T>(msg.right_hand_pos[1]);
+            right_hand_position[2] = static_cast<T>(msg.right_hand_pos[2]);
 
-            std::array<float, 4> temp_right_hand_quat = msg.right_hand_quat;
-            std::transform(temp_right_hand_quat.begin(), temp_right_hand_quat.end(), right_hand_orientation.begin(),
-                           [](const float& val) { return static_cast<T>(val); });
+            right_hand_orientation[0] = static_cast<T>(msg.right_hand_quat[0]);
+            right_hand_orientation[1] = static_cast<T>(msg.right_hand_quat[1]);
+            right_hand_orientation[2] = static_cast<T>(msg.right_hand_quat[2]);
+            right_hand_orientation[2] = static_cast<T>(msg.right_hand_quat[2]);
         }
         return true;
     }

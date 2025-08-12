@@ -242,7 +242,7 @@ private:
     JointDriverLS joint_driver_ls[6];
 
 public:
-    bool enableAllMotors()
+    bool enableAllMotors() const
     {
         struct can_frame frame;
         frame.can_id = 0x471;
@@ -256,7 +256,7 @@ public:
      * @brief Enable all joint motors.
      * @return true if command sent successfully.
      */
-    bool enableAllMotorsUntilConfirmed(std::size_t trials) 
+    bool enableAllMotorsUntilConfirmed(std::size_t trials) const
     {
 
         bool arm_enabled = false;
@@ -287,7 +287,7 @@ public:
         return arm_enabled;
     }
 
-    bool disableAllMotors()
+    bool disableAllMotors() const
     {
         struct can_frame frame;
         frame.can_id = 0x471;
@@ -302,7 +302,7 @@ public:
      * @brief Disable all joint motors.
      * @return true if command sent successfully.
      */
-    bool disableAllMotorsUntilConfirmed(std::size_t trials) 
+    bool disableAllMotorsUntilConfirmed(std::size_t trials) const
     {
 
         bool arm_disabled = false;
@@ -337,7 +337,7 @@ public:
      * @brief Enter CAN control mode.
      * @return true if command sent successfully.
      */
-    bool enterCANControlMode() 
+    bool enterCANControlMode() const
     {
         struct can_frame frame;
         frame.can_id = 0x151;
@@ -359,7 +359,7 @@ public:
      * @return true if command sent successfully.
      */
     bool setControlMode(MoveMode move_mode, bool enable_mit_mode = false, ControlMode mode = ControlMode::CAN_CONTROL_MODE, uint8_t speed_percentage = 100,
-                        uint8_t dwell_time = 0, InstallationPose installation = INVALID_POSE) 
+                        uint8_t dwell_time = 0, InstallationPose installation = INVALID_POSE) const
     {
         if (speed_percentage > 100) speed_percentage = 100;
         struct can_frame frame;
@@ -380,7 +380,7 @@ public:
      * Units: mm (0.001mm), degrees (0.001°).
      */
     bool setCartesianTarget(T x_mm, T y_mm, T z_mm,
-                            T rx_deg, T ry_deg, T rz_deg) 
+                            T rx_deg, T ry_deg, T rz_deg) const
     {
         auto sendSegment = [this](canid_t id, int32_t val_high, int32_t val_low) 
         {
@@ -417,7 +417,7 @@ public:
      * @brief Set target joint angles (J1-J6) in degrees.
      * Units: radian.
      */
-    bool setJointPosition(std::array<T, 6> joint_pos) 
+    bool setJointPosition(std::array<T, 6> joint_pos) const
     {
         auto sendSegment = [this](canid_t id, int32_t val1, int32_t val2) 
         {
@@ -450,7 +450,7 @@ public:
         return true;
     }
 
-    bool setJointMitControl(const std::array<T, 6>& joint_pos, const std::array<T, 6>& joint_vel, const std::array<T, 6>& joint_torq)
+    bool setJointMitControl(const std::array<T, 6>& joint_pos, const std::array<T, 6>& joint_vel, const std::array<T, 6>& joint_torq) const
     {
         auto sendSegment = [this](int id, T pos, T vel, T torq, T kp, T kd) -> bool
         {
@@ -489,7 +489,7 @@ public:
      * @brief Set arc motion point (start, mid, end).
      * @param point_type 0x01=start, 0x02=mid, 0x03=end
      */
-    bool setArcPoint(uint8_t point_type) 
+    bool setArcPoint(uint8_t point_type) const
     {
         if (point_type < 0x01 || point_type > 0x03) return false;
         struct can_frame frame;
@@ -503,7 +503,7 @@ public:
      * @brief Emergency stop.
      * @return true if command sent.
      */
-    bool emergencyStop() 
+    bool emergencyStop() const
     {
         struct can_frame frame;
         frame.can_id = 0x150;
@@ -517,7 +517,7 @@ public:
      * @brief Resume from emergency stop.
      * @return true if command sent.
      */
-    bool resumeFromEmergencyStop() 
+    bool resumeFromEmergencyStop() const
     {
         struct can_frame frame;
         frame.can_id = 0x150;
@@ -536,7 +536,7 @@ public:
      * @param set_zero Set current position as zero.
      */
     bool setGripper(T travel_mm, T torque_nm = 0.5f,
-                    bool enable = true, bool clear_error = false, bool set_zero = false) 
+                    bool enable = true, bool clear_error = false, bool set_zero = false) const
     {
         struct can_frame frame;
         frame.can_id = 0x159;
@@ -574,7 +574,7 @@ public:
      * @brief Set collision sensitivity for each joint (0-8, 0=off).
      */
     bool setCollisionLevel(uint8_t j1, uint8_t j2, uint8_t j3,
-                           uint8_t j4, uint8_t j5, uint8_t j6) 
+                           uint8_t j4, uint8_t j5, uint8_t j6) const
     {
         struct can_frame frame;
         frame.can_id = 0x47A;
@@ -593,7 +593,7 @@ public:
      * @brief Set zero position for a specific joint.
      * @return true if command sent.
      */
-    bool setJointZero(uint8_t idx) 
+    bool setJointZero(uint8_t idx) const
     {
         if (idx > 5) return false;
         struct can_frame frame;
@@ -605,7 +605,7 @@ public:
         return sendCanFrame(frame);
     }
 
-    bool setCollisionProtectionLevel(uint8_t level)
+    bool setCollisionProtectionLevel(uint8_t level) const
     {
         if ( level > 8 ) level = 8;
         struct can_frame frame;
@@ -621,7 +621,7 @@ public:
         return sendCanFrame(frame);
     }
 
-    bool setAllJointParameterAsDefault()
+    bool setAllJointParameterAsDefault() const
     {
         struct can_frame frame;
         frame.can_id = 0x477;
@@ -631,7 +631,7 @@ public:
         return sendCanFrame(frame);
     }
 
-    bool clearJointErrorCode(std::size_t idx)
+    bool clearJointErrorCode(std::size_t idx) const
     {
         struct can_frame frame;
         frame.can_id = 0x475;
@@ -644,7 +644,7 @@ public:
         return sendCanFrame(frame);
     }
 
-    bool clearAllJointErrorCode()
+    bool clearAllJointErrorCode() const
     {
         struct can_frame frame;
         frame.can_id = 0x475;
@@ -752,6 +752,18 @@ public:
     {
         if (idx > 5) return 0.0;
         return joint_driver_hs[idx].position_rad;
+    }
+
+    T getJointFeedbackVelocity(std::size_t idx) const
+    {
+        if (idx > 5) return 0.0;
+        return joint_driver_hs[idx].speed_rad_per_sec;
+    }
+
+    T getJointFeedbackTorque(std::size_t idx) const
+    {
+        if (idx > 5) return 0.0;
+        return idx < 3 ? joint_driver_hs[idx].current_a * 1.18125 : joint_driver_hs[idx].current_a * 0.95844;
     }
     
     T getCartesianPosition(std::size_t idx) const 
@@ -901,7 +913,7 @@ private:
      * @param frame The CAN frame to send.
      * @return true if successful.
      */
-    bool sendCanFrame(const struct can_frame& frame) 
+    bool sendCanFrame(const struct can_frame& frame) const
     {
         if (can_socket_ < 0) 
         {
@@ -924,7 +936,7 @@ private:
      * @param frame Reference to store received frame.
      * @return true if frame received, false otherwise.
      */
-    bool receiveCanFrame(struct can_frame& frame) 
+    bool receiveCanFrame(struct can_frame& frame) const
     {
         if (can_socket_ < 0) 
         {
@@ -1114,8 +1126,8 @@ private:
         int32_t pos_raw = (frame.data[4] << 24) | (frame.data[5] << 16) | 
                          (frame.data[6] << 8) | frame.data[7];
 
-        joint_driver_hs[joint_idx].speed_rad_per_sec = speed_raw / 1000.0;
-        joint_driver_hs[joint_idx].current_a = current_raw / 1000.0;
+        joint_driver_hs[joint_idx].speed_rad_per_sec = static_cast<T>(speed_raw) / 1000.0;
+        joint_driver_hs[joint_idx].current_a = static_cast<T>(current_raw) / 1000.0;
         joint_driver_hs[joint_idx].position_rad = static_cast<T>(pos_raw) / 1000.0;
     }
 

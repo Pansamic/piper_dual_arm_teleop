@@ -525,7 +525,7 @@ public:
     ErrorCode getShoulderJointPos(
         Eigen::Vector<T, 3>& shoulder_joint_pos,
         const Eigen::Matrix<T, 4, 4> &pose,
-        const Eigen::Vector<T, 3>& ref_conf)
+        const Eigen::Vector<T, 3>& ref_conf) const
     {
         Eigen::Matrix<T, 3, 4> possible_joint_pos;
 
@@ -679,7 +679,7 @@ public:
     ErrorCode getInverseKinematics(
         Eigen::Vector<T, NumDof>& joint_pos,
         const Eigen::Matrix<T, 4, 4>& pose,
-        const Eigen::Vector<T, NumDof>& ref_conf)
+        const Eigen::Vector<T, NumDof>& ref_conf) const
     {
         Eigen::Matrix<T, NumDof, 8> joint_pos_list;
 
@@ -893,7 +893,7 @@ public:
         const Eigen::Vector<T, 6>& ref_conf,
         const T lambda = 0.1,
         const Eigen::Vector<T, 6> tolerance = Eigen::Vector<T, 6>(0.05, 0.05, 0.05, 0.1, 0.1, 0.1),
-        const size_t max_iteration = 200)
+        const size_t max_iteration = 200) const
     {
         auto getPoseDiff = [](const Eigen::Matrix<T, 4, 4>& target_pose, const Eigen::Matrix<T, 4, 4>& current_pose)
         {
