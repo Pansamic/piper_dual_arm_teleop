@@ -1095,7 +1095,7 @@ private:
         bits.driver_over_temp = (status >> 3) & 0x01;
         bits.collision_protection = (status >> 4) & 0x01;
         bits.driver_error = (status >> 5) & 0x01;
-        bits.enabled = !((status >> 6) & 0x01);  // Inverted: 0=enabled, 1=disabled
+        bits.enabled = ((status >> 6) & 0x01);
         bits.stall_protection = (status >> 7) & 0x01;
     }
 
