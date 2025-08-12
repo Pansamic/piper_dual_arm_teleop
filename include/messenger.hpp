@@ -148,6 +148,7 @@ public:
                 left_arm_joint_pos[i] = static_cast<T>(msg.left_arm_joint_pos[i]);
                 right_arm_joint_pos[i] = static_cast<T>(msg.right_arm_joint_pos[i]);
             }
+
         }
         return true;
     }
@@ -164,9 +165,10 @@ public:
      * @return false 
      */
     template <typename T>
-    bool recvDualArmHandPose(bool& enable,
+    bool recvDualArmHandPoseGripper(bool& enable,
         std::array<T, 3>& left_hand_position, std::array<T, 4>& left_hand_orientation,
-        std::array<T, 3>& right_hand_position, std::array<T, 4>& right_hand_orientation)
+        std::array<T, 3>& right_hand_position, std::array<T, 4>& right_hand_orientation,
+        T& left_gripper, T& right_gripper)
     {
         if ( !this->receiver_enabled )
         {
@@ -198,6 +200,9 @@ public:
             right_hand_orientation[1] = static_cast<T>(msg.right_hand_quat[1]);
             right_hand_orientation[2] = static_cast<T>(msg.right_hand_quat[2]);
             right_hand_orientation[3] = static_cast<T>(msg.right_hand_quat[3]);
+
+            left_gripper = static_cast<T>(msg.left_grip);
+            right_gripper = static_cast<T>(msg.right_grip);
         }
         return true;
     }

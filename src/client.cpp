@@ -92,6 +92,11 @@ public:
         updateArmControl(left_arm_model, left_arm_interface, left_arm_trajectory_buffer);
         updateArmControl(right_arm_model, right_arm_interface, right_arm_trajectory_buffer);
     }
+    void updateGripper(double left_gripper, double right_gripper)
+    {
+        left_arm_interface.setGripper(70.0 - 70.0 * left_gripper);
+        right_arm_interface.setGripper(70.0 - 70.0 * right_gripper);
+    }
 private:
     PiperInterface<double> left_arm_interface;
     PiperInterface<double> right_arm_interface;
@@ -188,23 +193,24 @@ int main(void)
     bool system_enable;
     std::array<double, 3> left_hand_position, right_hand_position;
     std::array<double, 4> left_hand_orientation, right_hand_orientation;
+    double left_gripper, right_gripper;
     while ( !TerminationHandler::stop_requested )
     {
         increaseTimeSpec(&wakeup_time, &cycletime);
         clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, &wakeup_time, NULL);
 
-        if ( messenger.recvDualArmHandPose(system_enable, left_hand_position, left_hand_orientation, right_hand_position, right_hand_orientation) )
+        if ( messenger.recvDualArmHandPoseGripper(system_enable, left_hand_position, left_hand_orientation, right_hand_position, right_hand_orientation, left_gripper, right_gripper) )
         {
             if ( !system_enable )
             {
                 continue ;
             }
+            client.updateGripper(left_gripper, right_gripper);
             LOG_DEBUG("left hand position:x={:.4f},y={:.4f},z={:.4}", left_hand_position[0], left_hand_position[1], left_hand_position[2]);
             LOG_DEBUG("left hand orientation:x={:.4f},y={:.4f},z={:.4},w={:.4}", left_hand_orientation[0], left_hand_orientation[1], left_hand_orientation[2], left_hand_orientation[3]);
             LOG_DEBUG("right hand position:x={:.4f},y={:.4f},z={:.4}", right_hand_position[0], right_hand_position[1], right_hand_position[2]);
             LOG_DEBUG("right hand orientation:x={:.4f},y={:.4f},z={:.4},w={:.4}", right_hand_orientation[0], right_hand_orientation[1], right_hand_orientation[2], right_hand_orientation[3]);
         }
-
         client.updatePlan(left_hand_position, left_hand_orientation, right_hand_position, right_hand_orientation);
     }
 
