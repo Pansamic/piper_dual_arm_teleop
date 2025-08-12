@@ -154,7 +154,6 @@ public:
 
     void stop()
     {
-        disableAllMotors();
         listening_ = false;
         listen_thread_.join();
         if (can_socket_ >= 0) 
