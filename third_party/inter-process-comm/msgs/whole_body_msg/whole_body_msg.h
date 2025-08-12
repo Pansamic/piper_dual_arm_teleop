@@ -21,5 +21,10 @@ struct whole_body_msg {
   vec6 left_arm_joint_pos;
   vec6 right_arm_joint_pos;
 
+  vec4 left_hand_pos;
+  vec4 left_hand_quat;
+  vec4 right_hand_pos;
+  vec4 right_hand_quat;
+
   float left_grip, right_grip;
 };

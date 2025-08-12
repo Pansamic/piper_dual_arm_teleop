@@ -23,15 +23,15 @@ struct WholeBodyReceiver {
   using DataType                         = whole_body_msg;
   static constexpr uint8_t parser_type   = ParserType::Receiver;
   static constexpr uint16_t header       = 0xFBFB;
-  static constexpr size_t length         = 62;
+  static constexpr size_t length         = 78;
   static constexpr std::string_view name = "whole_body_receiver";
 
   static inline bool Process(const std::span<std::byte>& in, DataType& out) {
     // crc check
     {
-      uint16_t crc = CRC::CalculateBits(in.data(), 60, CRC::CRC_16_KERMIT());
+      uint16_t crc = CRC::CalculateBits(in.data(), 76, CRC::CRC_16_KERMIT());
       uint16_t crc_in;
-      memcpy(&crc_in, &in[60], sizeof(uint16_t));
+      memcpy(&crc_in, &in[76], sizeof(uint16_t));
       if (crc != crc_in) return false;
     }
 
@@ -60,8 +60,20 @@ struct WholeBodyReceiver {
     std::tie(out.right_arm_joint_pos[0], out.right_arm_joint_pos[1], out.right_arm_joint_pos[2]) = Decode3D<float, 10>(tmp_32bits, 3.1415926);
     memcpy(&tmp_32bits, &in[52], sizeof(uint32_t));
     std::tie(out.right_arm_joint_pos[3], out.right_arm_joint_pos[4], out.right_arm_joint_pos[5]) = Decode3D<float, 10>(tmp_32bits, 3.1415926);
-    // grip force
+    // left hand pos
     memcpy(&tmp_32bits, &in[56], sizeof(uint32_t));
+    std::tie(out.left_hand_pos[0], out.left_hand_pos[1], out.left_hand_pos[2]) = Decode3D<float, 10>(tmp_32bits, 1.2);
+    // left hand quaternion
+    memcpy(&tmp_32bits, &in[60], sizeof(uint32_t));
+    DecodeQuaternion<float>(tmp_32bits, out.left_hand_quat.data());
+    // right hand pos
+    memcpy(&tmp_32bits, &in[64], sizeof(uint32_t));
+    std::tie(out.right_hand_pos[0], out.right_hand_pos[1], out.right_hand_pos[2]) = Decode3D<float, 10>(tmp_32bits, 1.2);
+    // right hand quaternion
+    memcpy(&tmp_32bits, &in[68], sizeof(uint32_t));
+    DecodeQuaternion<float>(tmp_32bits, out.right_hand_quat.data());
+    // grip force
+    memcpy(&tmp_32bits, &in[72], sizeof(uint32_t));
     std::tie(out.left_grip, out.right_grip) = Decode2D<float, 16>(tmp_32bits);
 
     return true;
