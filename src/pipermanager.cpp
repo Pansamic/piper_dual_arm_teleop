@@ -38,11 +38,11 @@ int main(int argc, char* argv[])
 
     if ( program.get<bool>("--enable") )
     {
-        interface.enableAllMotors();
+        interface.enableAllMotorsUntilConfirmed(20);
     }
     else if ( program.get<bool>("--disable") )
     {
-        interface.disableAllMotors();
+        interface.disableAllMotorsUntilConfirmed(20);
     }
 
     interface.stop();
