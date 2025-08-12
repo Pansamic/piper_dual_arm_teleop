@@ -197,6 +197,10 @@ int main(void)
             {
                 continue ;
             }
+            LOG_INFO("left hand position:x={:.4f},y={:.4f},z={:.4}", left_hand_position[0], left_hand_position[1], left_hand_position[2]);
+            LOG_INFO("left hand orientation:x={:.4f},y={:.4f},z={:.4},w={:.4}", left_hand_orientation[0], left_hand_orientation[1], left_hand_orientation[2], left_hand_orientation[3]);
+            LOG_INFO("right hand position:x={:.4f},y={:.4f},z={:.4}", right_hand_position[0], right_hand_position[1], right_hand_position[2]);
+            LOG_INFO("right hand orientation:x={:.4f},y={:.4f},z={:.4},w={:.4}", right_hand_orientation[0], right_hand_orientation[1], right_hand_orientation[2], right_hand_orientation[3]);
         }
 
         client.updatePlan(left_hand_position, left_hand_orientation, right_hand_position, right_hand_orientation);
