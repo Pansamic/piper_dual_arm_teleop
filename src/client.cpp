@@ -232,22 +232,29 @@ int main(void)
             {
                 continue ;
             }
-            
-            Eigen::Vector3d left_gripper1_pos, left_gripper2_pos, right_gripper1_pos, right_gripper2_pos;
-            Eigen::Quaterniond left_gripper1_ori, left_gripper2_ori, right_gripper1_ori, right_gripper2_ori;
-            client.getGripperPose(
-                left_gripper1_pos, left_gripper1_ori, left_gripper2_pos, left_gripper2_ori,
-                right_gripper1_pos, right_gripper1_ori, right_gripper2_pos, right_gripper2_ori);
-            client.updateGripper(left_gripper, right_gripper);
-            messenger.sendFourGrippersPose(
-                left_gripper1_pos, left_gripper1_ori, left_gripper2_pos, left_gripper2_ori,
-                right_gripper1_pos, right_gripper1_ori, right_gripper2_pos, right_gripper2_ori);
             client.updatePlan(left_hand_position, left_hand_orientation, right_hand_position, right_hand_orientation);
             LOG_DEBUG("receive left hand position:x={:.4f},y={:.4f},z={:.4}", left_hand_position[0], left_hand_position[1], left_hand_position[2]);
             LOG_DEBUG("receive left hand orientation:x={:.4f},y={:.4f},z={:.4},w={:.4}", left_hand_orientation[0], left_hand_orientation[1], left_hand_orientation[2], left_hand_orientation[3]);
             LOG_DEBUG("receive right hand position:x={:.4f},y={:.4f},z={:.4}", right_hand_position[0], right_hand_position[1], right_hand_position[2]);
             LOG_DEBUG("receive right hand orientation:x={:.4f},y={:.4f},z={:.4},w={:.4}", right_hand_orientation[0], right_hand_orientation[1], right_hand_orientation[2], right_hand_orientation[3]);
         }
+        Eigen::Vector3d left_gripper1_pos, left_gripper2_pos, right_gripper1_pos, right_gripper2_pos;
+        Eigen::Quaterniond left_gripper1_ori, left_gripper2_ori, right_gripper1_ori, right_gripper2_ori;
+        client.getGripperPose(
+            left_gripper1_pos, left_gripper1_ori, left_gripper2_pos, left_gripper2_ori,
+            right_gripper1_pos, right_gripper1_ori, right_gripper2_pos, right_gripper2_ori);
+        client.updateGripper(left_gripper, right_gripper);
+        messenger.sendFourGrippersPose(
+            left_gripper1_pos, left_gripper1_ori, left_gripper2_pos, left_gripper2_ori,
+            right_gripper1_pos, right_gripper1_ori, right_gripper2_pos, right_gripper2_ori);
+        LOG_DEBUG("send left gripper1 position:x={:.4f},y={:.4f},z={:.4f}", left_gripper1_pos(0), left_gripper1_pos(1), left_gripper1_pos(2));
+        LOG_DEBUG("send left gripper1 quaternion:x={:.4f},y={:.4f},z={:.4f},w={:.4f}", left_gripper1_ori.x(), left_gripper1_ori.y(), left_gripper1_ori.z(), left_gripper1_ori.w());
+        LOG_DEBUG("send left gripper2 position:x={:.4f},y={:.4f},z={:.4f}", left_gripper2_pos(0), left_gripper2_pos(1), left_gripper2_pos(2));
+        LOG_DEBUG("send left gripper2 quaternion:x={:.4f},y={:.4f},z={:.4f},w={:.4f}", left_gripper2_ori.x(), left_gripper2_ori.y(), left_gripper2_ori.z(), left_gripper2_ori.w());
+        LOG_DEBUG("send right gripper1 position:x={:.4f},y={:.4f},z={:.4f}", right_gripper1_pos(0), right_gripper1_pos(1), right_gripper1_pos(2));
+        LOG_DEBUG("send right gripper1 quaternion:x={:.4f},y={:.4f},z={:.4f},w={:.4f}", right_gripper1_ori.x(), right_gripper1_ori.y(), right_gripper1_ori.z(), right_gripper1_ori.w());
+        LOG_DEBUG("send right gripper2 position:x={:.4f},y={:.4f},z={:.4f}", right_gripper2_pos(0), right_gripper2_pos(1), right_gripper2_pos(2));
+        LOG_DEBUG("send right gripper2 quaternion:x={:.4f},y={:.4f},z={:.4f},w={:.4f}", right_gripper2_ori.x(), right_gripper2_ori.y(), right_gripper2_ori.z(), right_gripper2_ori.w());
     }
 
     control_thread.join();
