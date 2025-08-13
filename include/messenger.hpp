@@ -60,7 +60,9 @@ public:
         const Eigen::Vector<T, 3>& right_gripper1_pos, const Eigen::Quaternion<T>& right_gripper1_ori,
         const Eigen::Vector<T, 3>& right_gripper2_pos, const Eigen::Quaternion<T>& right_gripper2_ori)
     {
-        nav_state_msg msg;
+        nav_state_msg msg{};
+
+        memset(&msg, 0, sizeof(msg));
 
         msg.left_grip_one_pos[0] = static_cast<float>(left_gripper1_pos(0));
         msg.left_grip_one_pos[1] = static_cast<float>(left_gripper1_pos(1));
@@ -226,7 +228,8 @@ public:
     template <typename T>
     bool sendDualArmJointPosition(bool enable, const std::array<T, 6>& left_arm_joint_pos, const std::array<T, 6>& right_arm_joint_pos)
     {
-        whole_body_msg msg;
+        whole_body_msg msg{};
+        memset(&msg, 0, sizeof(msg));
         msg.mask = 0;
         if ( enable )
         {
