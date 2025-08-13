@@ -103,14 +103,17 @@ public:
         Eigen::Vector3d& right_gripper1_pos, Eigen::Quaterniond& right_gripper1_ori,
         Eigen::Vector3d& right_gripper2_pos, Eigen::Quaterniond& right_gripper2_ori)
     {
-        Eigen::Vector<double, 6> joint_pos(
-            left_arm_interface.getJointAngle(0), left_arm_interface.getJointAngle(1), left_arm_interface.getJointAngle(2),
-            left_arm_interface.getJointAngle(3), left_arm_interface.getJointAngle(4), left_arm_interface.getJointAngle(5));
+        Eigen::Vector<double, 6> left_arm_joint_pos(
+            left_arm_interface.getJointFeedbackAngle(0), left_arm_interface.getJointFeedbackAngle(1), left_arm_interface.getJointFeedbackAngle(2),
+            left_arm_interface.getJointFeedbackAngle(3), left_arm_interface.getJointFeedbackAngle(4), left_arm_interface.getJointFeedbackAngle(5));
         double left_gripper_travel = left_arm_interface.getGripperTravel();
-        auto [left_gripper1_transform, left_gripper2_transform] = left_arm_model.getGripperTransform(joint_pos, left_gripper_travel / 1000.0 / 2, -left_gripper_travel / 1000.0 / 2);
+        auto [left_gripper1_transform, left_gripper2_transform] = left_arm_model.getGripperTransform(left_arm_joint_pos, -left_gripper_travel / 1000.0 / 2, left_gripper_travel / 1000.0 / 2);
+        Eigen::Vector<double, 6> right_arm_joint_pos(
+            right_arm_interface.getJointFeedbackAngle(0), right_arm_interface.getJointFeedbackAngle(1), right_arm_interface.getJointFeedbackAngle(2),
+            right_arm_interface.getJointFeedbackAngle(3), right_arm_interface.getJointFeedbackAngle(4), right_arm_interface.getJointFeedbackAngle(5));
         double right_gripper_travel = right_arm_interface.getGripperTravel();
-        auto [right_gripper1_transform, right_gripper2_transform] = right_arm_model.getGripperTransform(joint_pos, right_gripper_travel / 1000.0 / 2, -right_gripper_travel / 1000.0 / 2);
-        
+        auto [right_gripper1_transform, right_gripper2_transform] = right_arm_model.getGripperTransform(right_arm_joint_pos, -right_gripper_travel / 1000.0 / 2, right_gripper_travel / 1000.0 / 2);
+
         left_gripper1_pos = left_gripper1_transform.block<3, 1>(0, 3);
         left_gripper2_pos = left_gripper2_transform.block<3, 1>(0, 3);
         right_gripper1_pos = right_gripper1_transform.block<3, 1>(0, 3);
@@ -139,6 +142,14 @@ private:
             interface.getJointFeedbackAngle(3),
             interface.getJointFeedbackAngle(4),
             interface.getJointFeedbackAngle(5));
+
+        if ( &model == &left_arm_model )
+            LOG_DEBUG("current left arm joint position:{:.4f},{:.4f},{:.4f},{:.4f},{:.4f},{:.4f}",
+                actual_arm_joint_pos(0), actual_arm_joint_pos(1), actual_arm_joint_pos(2), actual_arm_joint_pos(3), actual_arm_joint_pos(4), actual_arm_joint_pos(5));
+        else
+            LOG_DEBUG("current right arm joint position:{:.4f},{:.4f},{:.4f},{:.4f},{:.4f},{:.4f}",
+                actual_arm_joint_pos(0), actual_arm_joint_pos(1), actual_arm_joint_pos(2), actual_arm_joint_pos(3), actual_arm_joint_pos(4), actual_arm_joint_pos(5));
+
         Eigen::Vector<double, NumDof> ik_result = Eigen::Vector<double, NumDof>::Zero();
         if ( model.getInverseKinematics(ik_result, pose, actual_arm_joint_pos) == ErrorCode::NoResult )
         {
@@ -188,7 +199,8 @@ int main(void)
     /* Register SIGINT handler. */
     TerminationHandler::setup();
 
-    ClientMessenger<ChannelMode::UDP> messenger(CONFIG_CLIENT_IPV4_ADDRESS, CONFIG_CLIENT_PORT, CONFIG_SERVER_IPV4_ADDRESS, CONFIG_SERVER_PORT);
+    // ClientMessenger<ChannelMode::UDP> messenger(CONFIG_CLIENT_IPV4_ADDRESS, CONFIG_CLIENT_PORT, CONFIG_SERVER_IPV4_ADDRESS, CONFIG_SERVER_PORT);
+    ClientMessenger<ChannelMode::Unix> messenger(CONFIG_CLIENT_MSG_QUEUE, CONFIG_SERVER_MSG_QUEUE);
     messenger.start();
 
     DualArmTeleopClient client;
