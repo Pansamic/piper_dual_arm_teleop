@@ -27,7 +27,7 @@ class ClientMessenger
 public:
     ClientMessenger() = delete;
 
-    explicit ClientMessenger(std::string local_endpoint, std::string remote_endpoint) : 
+    explicit ClientMessenger(std::string_view local_endpoint, std::string_view remote_endpoint) : 
         channel_(this->io_context_, local_endpoint, remote_endpoint),
         send_mq_{RingBuffer<nav_state_msg>{32}},
         recv_mq_{RingBuffer<whole_body_msg>{32}}{}

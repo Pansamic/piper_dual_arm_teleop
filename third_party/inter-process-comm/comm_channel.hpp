@@ -66,7 +66,7 @@ public:
   }
 
   CommChannel(asio::io_context &io_context, std::string_view local_path, std::string_view remote_path) requires(Mode == ChannelMode::Unix)
-      : local_endpoint_(createEp(local_path)), remote_endpoint_(UnixEp(remote_path)), socket_(io_context), timer_(io_context) {
+      : local_endpoint_(createEp(local_path)), remote_endpoint_(UnixEp(std::string(remote_path))), socket_(io_context), timer_(io_context) {
     socket_.open();
     socket_.bind(local_endpoint_);
   }
@@ -185,7 +185,7 @@ private:
 
   static UnixEp createEp(std::string_view sv) requires(Mode == ChannelMode::Unix) {
     std::remove(std::string(sv).c_str());
-    return UnixEp(sv);
+    return UnixEp(std::string(sv));
   }
 
   asio::steady_timer timer_;
