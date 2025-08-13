@@ -64,6 +64,8 @@ public:
 
         memset(&msg, 0, sizeof(msg));
 
+        msg.base_quat[3] = 1;
+
         msg.left_grip_one_pos[0] = static_cast<float>(left_gripper1_pos(0));
         msg.left_grip_one_pos[1] = static_cast<float>(left_gripper1_pos(1));
         msg.left_grip_one_pos[2] = static_cast<float>(left_gripper1_pos(2));
