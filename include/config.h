@@ -13,10 +13,10 @@
 
 #define CONFIG_CLIENT_IPV4_ADDRESS "192.168.1.5"
 #define CONFIG_CLIENT_PORT 54321
-#define CONFIG_CLIENT_MSG_QUEUE "/workspace/tmp/arm_station"
+#define CONFIG_CLIENT_MSG_QUEUE "/home/apex/robot_ws/tmp/arm_status"
 #define CONFIG_SERVER_IPV4_ADDRESS "192.168.1.105"
 #define CONFIG_SERVER_PORT 12345
-#define CONFIG_SERVER_MSG_QUEUE "/workspace/tmp/arm_solve"
+#define CONFIG_SERVER_MSG_QUEUE "/home/apex/robot_ws/tmp/arm_cmd"
 #define CONFIG_LEFT_ARM_BASE_X      -0.1
 #define CONFIG_LEFT_ARM_BASE_Y      0.15
 #define CONFIG_LEFT_ARM_BASE_Z      -0.43
