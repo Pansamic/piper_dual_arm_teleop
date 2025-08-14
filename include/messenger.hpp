@@ -78,9 +78,9 @@ public:
         msg.right_grip_one_pos[1] = static_cast<float>(right_gripper1_pos(1));
         msg.right_grip_one_pos[2] = static_cast<float>(right_gripper1_pos(2));
 
-        msg.right_grip_one_pos[0] = static_cast<float>(right_gripper2_pos(0));
-        msg.right_grip_one_pos[1] = static_cast<float>(right_gripper2_pos(1));
-        msg.right_grip_one_pos[2] = static_cast<float>(right_gripper2_pos(2));
+        msg.right_grip_two_pos[0] = static_cast<float>(right_gripper2_pos(0));
+        msg.right_grip_two_pos[1] = static_cast<float>(right_gripper2_pos(1));
+        msg.right_grip_two_pos[2] = static_cast<float>(right_gripper2_pos(2));
 
         msg.left_grip_one_quat[0] = static_cast<float>(left_gripper1_ori.x());
         msg.left_grip_one_quat[1] = static_cast<float>(left_gripper1_ori.y());
